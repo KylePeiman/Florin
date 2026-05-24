@@ -327,7 +327,7 @@ def live_cmd(
             logs_dir=logs_dir,
             use_live_orders=use_live_orders,
             use_last_second=last_second,
-            use_streaming=streaming,
+            use_streaming=False,  # pool mode: per-worker WS causes 429 storms; use REST polling
             ls_entry_window=ls_entry_window,
             ls_min_yes_cents=ls_min_yes,
             ls_max_yes_cents=ls_max_yes,

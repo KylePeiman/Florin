@@ -13,6 +13,8 @@ import signal
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable
 
 from sqlalchemy.orm import Session as DbSession
@@ -136,6 +138,11 @@ class WorkerPool:
         self._next_worker_idx += 1
         stop_event = threading.Event()
 
+        logs_dir = self._worker_kwargs.get("logs_dir", "logs")
+        Path(logs_dir).mkdir(exist_ok=True)
+        ts_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        log_path = str(Path(logs_dir) / f"pool{self._pool_id}_w{idx}_{ts_str}.log")
+
         db = self._db_factory()
         try:
             from src.storage.models import SimSession
@@ -144,6 +151,7 @@ class WorkerPool:
                 current_bankroll_cents=PER_WORKER_CENTS,
                 pool_id=self._pool_id,
                 worker_index=idx,
+                log_path=log_path,
             )
             db.add(sim)
             db.commit()
