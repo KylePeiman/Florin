@@ -34,6 +34,7 @@ _TYPE_LABELS: dict[str, str] = {
     "SERIES":      "Series Arb",
     "CROSS":       "Cross-Arb",
     "DIRECTIONAL": "Directional",
+    "WEATHER":     "Weather",
 }
 
 
@@ -89,6 +90,8 @@ def _session_strategy(session) -> str:
     parts = []
     if "+LAST-SEC" in header or any(p.arb_type == "last_second" for p in session.positions):
         parts.append("Last-Sec")
+    if any(p.arb_type == "weather" for p in session.positions):
+        parts.append("Weather")
     if "+PREDICTION" in header or any(
         p.arb_type is None and p.ev and p.ev > 0 for p in session.positions
     ):

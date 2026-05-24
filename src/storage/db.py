@@ -18,6 +18,8 @@ def _migrate(engine):
             ("sim_positions", "live", "INTEGER DEFAULT 0"),
             ("sim_positions", "order_ids", "TEXT"),
             ("sim_sessions", "opening_adjustment_cents", "REAL DEFAULT 0.0"),
+            ("sim_positions", "entry_nws_prob", "REAL"),
+            ("sim_positions", "entry_edge", "REAL"),
         ]
         for table, col, col_type in new_columns:
             try:

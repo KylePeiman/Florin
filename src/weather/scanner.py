@@ -10,6 +10,7 @@ NWS-implied probability diverges from the Kalshi price by at least
 from __future__ import annotations
 
 import datetime
+import math
 from typing import Any
 
 from src.fetchers.kalshi import KalshiFetcher
@@ -33,7 +34,20 @@ def get_nws_probability(
     parsed: dict[str, Any],
     forecast: list[dict[str, Any]],
 ) -> float | None:
-    """Convert an NWS forecast to a 0-1 probability for a parsed market.
+    """Convert an NWS hourly forecast to a 0-1 probability for a parsed market.
+
+    Uses all available hourly data to produce a smooth, continuous probability
+    rather than a coarse bucket-based heuristic:
+
+    - **Precip**: highest single-hour PoP across the day (best proxy for
+      "will it rain at all today").
+    - **High / low temp**: sigmoid centered on the forecast extreme vs the
+      threshold; sigma adapts to the daily temperature range so a narrow
+      forecast is treated as higher-confidence than a wide one.
+    - **Wind**: sigmoid using the peak hourly wind against the threshold,
+      with a fixed sigma of 3 mph.
+    - **Bucket**: fraction of hours inside the bucket, blended with a
+      sigmoid on how far the peak is from the nearest edge.
 
     Args:
         parsed: Output of ``parse_weather_market`` with keys ``date``,
@@ -63,69 +77,79 @@ def get_nws_probability(
         return None
 
     if metric == "precip":
-        avg_precip = sum(p["precip_pct"] for p in day_periods) / len(
-            day_periods
-        )
-        prob = avg_precip / 100.0
+        # Max hourly PoP is the best single-day proxy: if any hour is
+        # likely to produce precip, the day probably sees precip.
+        max_pop = max(p["precip_pct"] for p in day_periods)
+        # Blend with average to avoid over-counting brief shower windows.
+        avg_pop = sum(p["precip_pct"] for p in day_periods) / len(day_periods)
+        prob = (0.6 * max_pop + 0.4 * avg_pop) / 100.0
         return prob if direction == "above" else 1.0 - prob
 
     if metric == "high_temp":
-        observed = max(p["temp_f"] for p in day_periods)
-    elif metric == "low_temp":
-        observed = min(p["temp_f"] for p in day_periods)
-    elif metric == "wind":
+        temps = [p["temp_f"] for p in day_periods]
+        observed = max(temps)
+        # Sigma adapts to daily temperature spread: a tight forecast
+        # (all hours similar) warrants a sharper probability curve.
+        daily_range = max(temps) - min(temps)
+        sigma = max(daily_range / 6.0, 1.5)
+        diff = observed - threshold
+        raw = _sigmoid(diff, sigma)
+        return raw if direction == "above" else 1.0 - raw
+
+    if metric == "low_temp":
+        temps = [p["temp_f"] for p in day_periods]
+        observed = min(temps)
+        daily_range = max(temps) - min(temps)
+        sigma = max(daily_range / 6.0, 1.5)
+        diff = observed - threshold
+        raw = _sigmoid(diff, sigma)
+        return raw if direction == "above" else 1.0 - raw
+
+    if metric == "wind":
+        # Use peak hourly wind as the relevant extreme.
         observed = max(p["wind_mph"] for p in day_periods)
-    else:
-        return None
+        raw = _sigmoid(observed - threshold, sigma=3.0)
+        return raw if direction == "above" else 1.0 - raw
 
     if direction == "bucket":
         lo = parsed.get("threshold_low", threshold - 0.5)
         hi = parsed.get("threshold_high", threshold + 0.5)
-        if lo <= observed < hi:
-            return 0.70
-        if abs(observed - threshold) <= 2:
-            return 0.25
-        return 0.05
+        temps = [p["temp_f"] for p in day_periods]
+        peak = max(temps)
+        # Fraction of hours inside the bucket — direct data-driven signal.
+        hours_inside = sum(1 for t in temps if lo <= t < hi)
+        frac_inside = hours_inside / len(temps)
+        # Sigmoid on how far the peak is from nearest bucket edge.
+        margin = min(peak - lo, hi - peak)
+        edge_conf = _sigmoid(margin, sigma=2.0)
+        if lo <= peak < hi:
+            return 0.5 * frac_inside + 0.5 * edge_conf
+        else:
+            return 0.5 * frac_inside + 0.5 * (1.0 - edge_conf)
 
-    return _threshold_probability(observed, threshold, direction)
+    return None
 
 
-def _threshold_probability(
-    observed: float,
-    threshold: float,
-    direction: str,
-) -> float:
-    """Map the difference between an observed value and a threshold to a
-    rough probability using a three-tier heuristic.
+def _sigmoid(diff: float, sigma: float = 2.0) -> float:
+    """Logistic function mapping a signed difference to a [0, 1] probability.
+
+    ``_sigmoid(0)`` → 0.50; positive diff → above 0.50; negative → below.
 
     Args:
-        observed: The forecast value (e.g. max temp, min temp, max wind).
-        threshold: The market's threshold value.
-        direction: ``"above"`` or ``"below"``.
+        diff: Signed difference (observed − threshold).
+        sigma: Scale factor; larger values produce a softer curve.
+            Typical values: 2.0 for temperature (°F), 3.0 for wind (mph).
 
     Returns:
-        A probability float: 0.85, 0.50, or 0.15.
+        Float in (0, 1).
     """
-    diff = observed - threshold
-
-    if direction == "above":
-        if diff > 3:
-            return 0.85
-        if abs(diff) <= 3:
-            return 0.50
-        return 0.15
-    else:
-        # direction == "below"
-        if diff < -3:
-            return 0.85
-        if abs(diff) <= 3:
-            return 0.50
-        return 0.15
+    return 1.0 / (1.0 + math.exp(-diff / sigma))
 
 
 def scan_weather_markets(
     fetcher: KalshiFetcher,
     min_edge: float = 0.05,
+    min_nws_prob: float = 0.35,
 ) -> list[dict[str, Any]]:
     """Fetch Kalshi weather markets and find NWS edge opportunities.
 
@@ -201,6 +225,13 @@ def scan_weather_markets(
 
             edge = abs(nws_prob - kalshi_prob)
             if edge < min_edge:
+                continue
+
+            # Require minimum NWS confidence on the favored side to avoid
+            # entering YES trades where NWS is only marginally above 0.
+            if nws_prob > kalshi_prob and nws_prob < min_nws_prob:
+                continue
+            if nws_prob < kalshi_prob and (1.0 - nws_prob) < min_nws_prob:
                 continue
 
             if nws_prob > kalshi_prob:

@@ -1,9 +1,9 @@
 """Weather strategy loop — scan NWS-edge markets, enter positions, settle.
 
 Continuously scans Kalshi weather markets for NWS forecast edge,
-enters positions when edge exceeds a threshold, and settles them
-when the market resolves.  Supports both paper-trade (simulated)
-and live order placement.
+enters positions when edge exceeds a threshold, settles them when
+the market resolves, and hourly rechecks open positions to scale up
+or exit based on updated forecasts.
 
 Usage (via CLI or direct call)::
 
@@ -21,6 +21,8 @@ from src.fetchers.kalshi import KalshiFetcher
 from src.storage.db import get_session
 from src.storage.models import SimPosition, SimSession
 from src.weather.scanner import scan_weather_markets
+
+RECHECK_INTERVAL = 3600  # re-evaluate open positions every hour
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +122,183 @@ def _settle_positions(
 
 
 # ---------------------------------------------------------------------------
+# Position exit
+# ---------------------------------------------------------------------------
+
+def _exit_position(
+    pos: SimPosition,
+    exit_price_cents: int,
+    session: SimSession,
+    fetcher: KalshiFetcher,
+    live: bool,
+    db: Any,
+    log_file: IO[str],
+) -> bool:
+    """Sell out of an open weather position at the current implied bid.
+
+    For live sessions, places an IOC sell order and returns False (hold)
+    if it doesn't fill.  For sim sessions, always succeeds.
+
+    Args:
+        pos: The open ``SimPosition`` to exit.
+        exit_price_cents: Implied bid price in cents (``100 - opposite_ask``).
+        session: The parent ``SimSession`` whose bankroll to update.
+        fetcher: Authenticated ``KalshiFetcher`` for live sell orders.
+        live: If ``True``, place a real Kalshi sell order.
+        db: SQLAlchemy session for persistence.
+        log_file: Open log file handle.
+
+    Returns:
+        ``True`` if the position was exited, ``False`` if the sell did not fill.
+    """
+    exit_price_cents = max(1, exit_price_cents)
+    contracts = pos.contracts
+
+    if live and pos.live:
+        try:
+            order = fetcher.place_order(
+                ticker=pos.ticker,
+                side=pos.side,
+                price_cents=exit_price_cents,
+                count=contracts,
+                action="sell",
+            )
+            filled = order.get("fill_count", 0)
+            status = order.get("status", "")
+            if status in ("executed", "filled") and not filled:
+                filled = contracts
+            if filled == 0:
+                _log(log_file, f"  [EXIT] {pos.ticker} sell not filled — holding")
+                return False
+            contracts = filled
+        except Exception as exc:
+            _log(log_file, f"  [EXIT ERR] {pos.ticker}: {exc} — holding")
+            return False
+
+    recovered = exit_price_cents * contracts
+    pnl_cents = recovered - pos.cost_cents
+
+    pos.status = "exited"
+    pos.pnl_cents = pnl_cents
+    pos.settled_at = datetime.now(timezone.utc)
+    session.current_bankroll_cents += recovered
+    if pnl_cents >= 0:
+        session.won += 1
+    else:
+        session.lost += 1
+    db.commit()
+
+    _log(
+        log_file,
+        f"  EXIT {pos.ticker} ({pos.side.upper()}) @ {exit_price_cents}c x{contracts}"
+        f" | P&L={pnl_cents:+.0f}c  bankroll=${session.current_bankroll_cents / 100:.4f}",
+    )
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Position recheck (hourly)
+# ---------------------------------------------------------------------------
+
+def _recheck_positions(
+    open_positions: list[SimPosition],
+    fetcher: KalshiFetcher,
+    session: SimSession,
+    db: Any,
+    log_file: IO[str],
+    live: bool,
+    min_edge: float,
+    scale_up_threshold: float,
+) -> tuple[list[SimPosition], list[dict]]:
+    """Re-evaluate open weather positions against fresh NWS + Kalshi data.
+
+    For each open weather position, fetches the current NWS probability and
+    Kalshi ask prices.  Exits positions where the edge has flipped past
+    ``min_edge`` in the wrong direction.  Returns scale-up opportunities for
+    positions where the edge has grown by at least ``scale_up_threshold``.
+
+    Args:
+        open_positions: Currently open positions for this session.
+        fetcher: Authenticated ``KalshiFetcher``.
+        session: The parent ``SimSession``.
+        db: SQLAlchemy session.
+        log_file: Open log file handle.
+        live: Whether to place real Kalshi orders when exiting.
+        min_edge: Minimum edge used for initial entry.
+        scale_up_threshold: How much the edge must grow beyond ``entry_edge``
+            to trigger a scale-up (e.g. 0.10 = 10 percentage points).
+
+    Returns:
+        A tuple of ``(still_open, scale_up_opps)`` where ``scale_up_opps``
+        are opportunity dicts (same shape as ``scan_weather_markets`` output)
+        ready to pass to ``_enter_position``.
+    """
+    weather_positions = [p for p in open_positions if p.arb_type == "weather"]
+    if not weather_positions:
+        return open_positions, []
+
+    _log(log_file, f"Rechecking {len(weather_positions)} open weather position(s)...")
+
+    try:
+        # min_edge=0 so we get fresh data for all markets, even ones below threshold
+        all_markets = scan_weather_markets(fetcher, min_edge=0.0)
+    except Exception as exc:
+        _log(log_file, f"  [RECHECK ERR] scan failed: {exc}")
+        return open_positions, []
+
+    market_lookup: dict[str, dict] = {opp["market"].id: opp for opp in all_markets}
+
+    still_open = list(open_positions)
+    scale_up_opps: list[dict] = []
+
+    for pos in weather_positions:
+        current = market_lookup.get(pos.ticker)
+        if current is None:
+            _log(log_file, f"  [RECHECK] {pos.ticker} not in scan (expired?) — skipping")
+            continue
+
+        nws_prob: float = current["nws_prob"]
+        kalshi_prob: float = current["kalshi_prob"]
+        yes_ask: int = current["market"].selections[0].metadata.get("yes_ask", 0)
+        no_ask: int = current["market"].selections[0].metadata.get("no_ask", 0)
+
+        # Edge in our direction: positive = still favourable, negative = flipped
+        if pos.side == "yes":
+            current_edge = nws_prob - kalshi_prob
+            exit_price = max(1, 100 - no_ask) if no_ask > 0 else 1
+        else:
+            current_edge = kalshi_prob - nws_prob
+            exit_price = max(1, 100 - yes_ask) if yes_ask > 0 else 1
+
+        entry_edge = pos.entry_edge or 0.0
+
+        _log(
+            log_file,
+            f"  [RECHECK] {pos.ticker} side={pos.side} "
+            f"entry_edge={entry_edge:.2f} current_edge={current_edge:+.2f} "
+            f"nws={nws_prob:.2f} kalshi={kalshi_prob:.2f}",
+        )
+
+        # Edge has flipped against us past min_edge — exit
+        if current_edge < -min_edge:
+            _log(log_file, f"  [RECHECK] {pos.ticker} edge flipped — EXITING")
+            exited = _exit_position(pos, exit_price, session, fetcher, live, db, log_file)
+            if exited:
+                still_open = [p for p in still_open if p.id != pos.id]
+            continue
+
+        # Edge grown enough in our direction and side still matches — scale up
+        if current_edge >= entry_edge + scale_up_threshold and current["side"] == pos.side:
+            _log(
+                log_file,
+                f"  [RECHECK] {pos.ticker} edge grew {entry_edge:.2f} → {current_edge:.2f} — SCALE UP",
+            )
+            scale_up_opps.append(current)
+
+    return still_open, scale_up_opps
+
+
+# ---------------------------------------------------------------------------
 # Position entry
 # ---------------------------------------------------------------------------
 
@@ -178,6 +357,8 @@ def _enter_position(
         arb_type="weather",
         status="open",
         live=int(live),
+        entry_nws_prob=opp.get("nws_prob"),
+        entry_edge=opp.get("edge"),
     )
     db.add(position)
 
@@ -254,8 +435,9 @@ def _enter_position(
 def run_weather_strategy(
     live: bool,
     bankroll_cents: float,
-    interval_seconds: int = 300,
+    interval_seconds: int = 3600,
     min_edge: float = 0.05,
+    scale_up_threshold: float = 0.10,
     session_id: int | None = None,
 ) -> None:
     """Run the weather-edge strategy in a continuous loop.
@@ -269,10 +451,15 @@ def run_weather_strategy(
             paper-trade only.
         bankroll_cents: Starting bankroll in cents (ignored when
             resuming via ``session_id``).
-        interval_seconds: Seconds between market scans.  Settlement
-            checks run every 30 s regardless.
+        interval_seconds: Seconds between new-opportunity scans.
+            Defaults to 3600 (hourly), matching the NWS update cadence.
+            Settlement checks run every 30 s regardless.
         min_edge: Minimum absolute probability edge to enter a
             position.
+        scale_up_threshold: How much the edge must grow beyond its
+            value at entry to trigger adding contracts (default 0.10).
+            Also used to detect scale-down: position is exited when
+            edge flips past ``min_edge`` in the wrong direction.
         session_id: If provided, resume an existing ``SimSession``
             instead of creating a new one.
 
@@ -310,7 +497,7 @@ def run_weather_strategy(
         db.add(session)
         db.commit()
 
-    # Load any already-open positions from a resumed session.
+    # open_positions: only current session — used for settlement and recheck.
     open_positions: list[SimPosition] = (
         db.query(SimPosition)
         .filter(
@@ -319,22 +506,49 @@ def run_weather_strategy(
         )
         .all()
     )
-    entered_tickers: set[str] = {
-        p.ticker for p in open_positions
-    }
 
-    last_scan_at: float = 0.0
+    # entered_tickers: all sessions — prevents re-entering a ticker that was
+    # already traded in a prior session that crashed and restarted.
+    all_open_weather: list[SimPosition] = (
+        db.query(SimPosition)
+        .filter(
+            SimPosition.status == "open",
+            SimPosition.arb_type == "weather",
+        )
+        .all()
+    )
+    entered_tickers: set[str] = {p.ticker for p in all_open_weather}
+
+    last_recheck_at: float = 0.0
     mode_label = "LIVE" if live else "SIM"
 
-    log_file = open(log_path, "a")
+    # Align first scan to :25 past the hour (NWS posts ~15-20 min after the hour).
+    now_dt = datetime.now(timezone.utc)
+    mins_past = now_dt.minute + now_dt.second / 60.0
+    if mins_past < 25:
+        secs_until_offset = (25 - mins_past) * 60
+    else:
+        secs_until_offset = (60 - mins_past + 25) * 60
+    # Treat "within 90 seconds of :25" as scan-immediately.
+    if secs_until_offset > 90:
+        last_scan_at = time.time() - (interval_seconds - secs_until_offset)
+    else:
+        last_scan_at = 0.0  # fire on first loop iteration
+
+    log_file = open(log_path, "a", encoding="utf-8")
     try:
+        next_scan_dt = datetime.fromtimestamp(
+            last_scan_at + interval_seconds, tz=timezone.utc
+        )
         _log(
             log_file,
             f"Weather strategy started [{mode_label}] "
             f"session={session.id} "
             f"bankroll=${session.current_bankroll_cents / 100:.2f} "
             f"interval={interval_seconds}s "
-            f"min_edge={min_edge}",
+            f"min_edge={min_edge} "
+            f"scale_up_threshold={scale_up_threshold} "
+            f"| first scan at {next_scan_dt.strftime('%H:%M')} UTC",
         )
 
         while True:
@@ -343,35 +557,55 @@ def run_weather_strategy(
                 open_positions, fetcher, session, db, log_file,
             )
 
-            # -- Scan for new opportunities --------------------------------
             now = time.time()
+
+            # -- Hourly recheck of open positions -------------------------
+            if now - last_recheck_at >= RECHECK_INTERVAL and open_positions:
+                open_positions, scale_up_opps = _recheck_positions(
+                    open_positions, fetcher, session, db, log_file,
+                    live, min_edge, scale_up_threshold,
+                )
+                for opp in scale_up_opps:
+                    market_id = opp["market"].id
+                    # Only scale up once per ticker — skip if already scaled
+                    if market_id in entered_tickers:
+                        continue
+                    _enter_position(opp, session, fetcher, live, db, log_file)
+                    entered_tickers.add(market_id)
+                    new_pos = (
+                        db.query(SimPosition)
+                        .filter(
+                            SimPosition.session_id == session.id,
+                            SimPosition.ticker == market_id,
+                            SimPosition.status == "open",
+                        )
+                        .order_by(SimPosition.id.desc())
+                        .first()
+                    )
+                    if new_pos is not None:
+                        open_positions.append(new_pos)
+                last_recheck_at = now
+
+            # -- Scan for new opportunities --------------------------------
             if now - last_scan_at >= interval_seconds:
                 _log(log_file, "Scanning weather markets...")
                 try:
-                    opportunities = scan_weather_markets(
-                        fetcher, min_edge,
-                    )
+                    opportunities = scan_weather_markets(fetcher, min_edge)
                 except Exception as exc:
-                    _log(
-                        log_file,
-                        f"  [ERR] scan failed: {exc}",
-                    )
+                    _log(log_file, f"  [ERR] scan failed: {exc}")
                     opportunities = []
 
                 for opp in opportunities:
                     market_id = opp["market"].id
                     if market_id not in entered_tickers:
                         _enter_position(
-                            opp, session, fetcher, live,
-                            db, log_file,
+                            opp, session, fetcher, live, db, log_file,
                         )
                         entered_tickers.add(market_id)
-                        # Refresh open positions list after entry.
                         new_pos = (
                             db.query(SimPosition)
                             .filter(
-                                SimPosition.session_id
-                                == session.id,
+                                SimPosition.session_id == session.id,
                                 SimPosition.ticker == market_id,
                                 SimPosition.status == "open",
                             )
@@ -384,8 +618,7 @@ def run_weather_strategy(
                 _log(
                     log_file,
                     f"  Open positions: {len(open_positions)} | "
-                    f"Bankroll: "
-                    f"${session.current_bankroll_cents / 100:.4f}",
+                    f"Bankroll: ${session.current_bankroll_cents / 100:.4f}",
                 )
 
             time.sleep(30)

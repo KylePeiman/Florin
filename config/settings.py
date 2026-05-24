@@ -57,7 +57,7 @@ class Settings:
 
     # Weather strategy
     WEATHER_MIN_EDGE: float = float(os.getenv("WEATHER_MIN_EDGE", "0.05"))
-    WEATHER_INTERVAL: int = int(os.getenv("WEATHER_INTERVAL", "300"))
+    WEATHER_INTERVAL: int = int(os.getenv("WEATHER_INTERVAL", "3600"))
 
 
 settings = Settings()

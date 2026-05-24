@@ -193,6 +193,10 @@ class SimPosition(Base):
     pnl_cents = Column(Float, nullable=True)
     settled_at = Column(DateTime, nullable=True)
 
+    # Weather strategy entry metadata (used for position recheck logic)
+    entry_nws_prob = Column(Float, nullable=True)   # NWS probability at entry
+    entry_edge = Column(Float, nullable=True)        # abs edge at entry
+
     # Live trading fields
     live = Column(Integer, default=0)           # 1 = real Kalshi orders were placed
     order_ids = Column(Text, nullable=True)     # JSON list of Kalshi order IDs

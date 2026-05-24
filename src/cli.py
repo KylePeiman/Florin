@@ -825,9 +825,11 @@ def weather_scan(min_edge):
               help="Scan interval seconds (default: WEATHER_INTERVAL env var)")
 @click.option("--min-edge", default=None, type=float,
               help="Min edge to enter (default: WEATHER_MIN_EDGE env var)")
+@click.option("--scale-up-threshold", default=0.10, type=float, show_default=True,
+              help="Edge must grow by this much since entry to add contracts")
 @click.option("--resume", default=None, type=int,
               help="Resume session ID")
-def weather_run(mode, bankroll, interval, min_edge, resume):
+def weather_run(mode, bankroll, interval, min_edge, scale_up_threshold, resume):
     """Run the weather trading strategy (continuous loop)."""
     from src.weather.strategy import run_weather_strategy
     from config.settings import settings
@@ -843,6 +845,7 @@ def weather_run(mode, bankroll, interval, min_edge, resume):
         f" | bankroll=${bankroll:.2f}"
         f" | interval={scan_interval}s"
         f" | min_edge={edge:.0%}"
+        f" | scale_up_threshold={scale_up_threshold:.0%}"
     )
 
     run_weather_strategy(
@@ -850,6 +853,7 @@ def weather_run(mode, bankroll, interval, min_edge, resume):
         bankroll_cents=bankroll * 100,
         interval_seconds=scan_interval,
         min_edge=edge,
+        scale_up_threshold=scale_up_threshold,
         session_id=resume,
     )
 

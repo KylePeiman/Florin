@@ -32,7 +32,7 @@ from typing import Any
 # Defaults (all overridable via function params)
 # ---------------------------------------------------------------------------
 
-ENTRY_WINDOW_SECONDS: int = 300         # enter within this many seconds of close
+ENTRY_WINDOW_SECONDS: int = 120         # enter within this many seconds of close
 MIN_YES_CENTS: int = 70                 # minimum YES ask (market must find it likely)
 MAX_YES_CENTS: int = 98                 # maximum YES ask (99c excluded: no room for profit)
 MIN_NO_CENTS: int = 3                   # minimum NO ask for NO trades (avoid zero-edge)

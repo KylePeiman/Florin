@@ -372,7 +372,7 @@ class TestGetNwsProbability(unittest.TestCase):
         }
 
     def test_high_temp_clearly_above(self) -> None:
-        """Max forecast temp (80) well above threshold (75) -> ~0.85."""
+        """Max forecast temp (80) well above threshold (75): sigmoid gives ~0.97."""
         forecast = [
             _make_forecast_hour(10, temp=72.0),
             _make_forecast_hour(12, temp=78.0),
@@ -381,30 +381,33 @@ class TestGetNwsProbability(unittest.TestCase):
         ]
         prob = get_nws_probability(self._parsed(), forecast)
         self.assertIsNotNone(prob)
-        self.assertAlmostEqual(prob, 0.85, delta=0.01)
+        # daily range=8, sigma=1.5, diff=+5 -> sigmoid ~0.966
+        self.assertGreater(prob, 0.90)
 
     def test_high_temp_borderline(self) -> None:
-        """Max forecast temp (74) within 3F of threshold (75) -> 0.50."""
+        """Max forecast temp (74) just below threshold (75): sigmoid gives ~0.34."""
         forecast = [
             _make_forecast_hour(10, temp=68.0),
             _make_forecast_hour(14, temp=74.0),
         ]
         prob = get_nws_probability(self._parsed(), forecast)
         self.assertIsNotNone(prob)
-        self.assertAlmostEqual(prob, 0.50, delta=0.01)
+        # daily range=6, sigma=1.5, diff=-1 -> sigmoid ~0.34
+        self.assertAlmostEqual(prob, 0.34, delta=0.02)
 
     def test_high_temp_clearly_below(self) -> None:
-        """Max forecast temp (68) well below threshold (75) -> 0.15."""
+        """Max forecast temp (68) well below threshold (75): sigmoid gives ~0.01."""
         forecast = [
             _make_forecast_hour(10, temp=62.0),
             _make_forecast_hour(14, temp=68.0),
         ]
         prob = get_nws_probability(self._parsed(), forecast)
         self.assertIsNotNone(prob)
-        self.assertAlmostEqual(prob, 0.15, delta=0.01)
+        # daily range=6, sigma=1.5, diff=-7 -> sigmoid ~0.009
+        self.assertLess(prob, 0.05)
 
-    def test_precip_average(self) -> None:
-        """Precip with [60, 70, 80] pct values -> ~0.70 average."""
+    def test_precip_blend(self) -> None:
+        """Precip with [60, 70, 80] pct values: blended 60/40 max/avg -> ~0.76."""
         forecast = [
             _make_forecast_hour(10, precip=60),
             _make_forecast_hour(12, precip=70),
@@ -415,7 +418,8 @@ class TestGetNwsProbability(unittest.TestCase):
         )
         prob = get_nws_probability(parsed, forecast)
         self.assertIsNotNone(prob)
-        self.assertAlmostEqual(prob, 0.70, delta=0.01)
+        # (0.6*80 + 0.4*70) / 100 = 0.76
+        self.assertAlmostEqual(prob, 0.76, delta=0.01)
 
     def test_empty_forecast_returns_none(self) -> None:
         """Empty forecast list -> None."""
@@ -448,19 +452,18 @@ class TestScanWeatherMarkets(unittest.TestCase):
         edge=0.20.
         """
         today = datetime.date.today()
-        now = datetime.datetime.now(tz=datetime.timezone.utc).replace(
-            hour=12
-        )
+        # starts_at must be in the future for the scanner's time-window filter.
+        closes_at = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=6)
 
         mock_market = _make_scanner_market(
             market_id="WEATHER-NYC-TEMP",
             yes_ask=60,
             no_ask=40,
-            starts_at=now,
+            starts_at=closes_at,
         )
 
         mock_fetcher = MagicMock()
-        mock_fetcher.get_markets.return_value = [mock_market]
+        mock_fetcher.get_markets_by_series.return_value = [mock_market]
 
         mock_parse.return_value = {
             "city": "New York",
@@ -493,19 +496,17 @@ class TestScanWeatherMarkets(unittest.TestCase):
         mock_forecast: MagicMock,
     ) -> None:
         """nws_prob=0.30 and kalshi yes_ask=60c -> side='no'."""
-        now = datetime.datetime.now(tz=datetime.timezone.utc).replace(
-            hour=12
-        )
+        closes_at = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=6)
 
         mock_market = _make_scanner_market(
             market_id="WEATHER-DEN-TEMP",
             yes_ask=60,
             no_ask=40,
-            starts_at=now,
+            starts_at=closes_at,
         )
 
         mock_fetcher = MagicMock()
-        mock_fetcher.get_markets.return_value = [mock_market]
+        mock_fetcher.get_markets_by_series.return_value = [mock_market]
 
         mock_parse.return_value = {
             "city": "Denver",

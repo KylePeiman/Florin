@@ -121,15 +121,23 @@ class KalshiFetcher(BaseFetcher):
             resp.raise_for_status()
             return resp.json()
 
-    def place_order(self, ticker: str, side: str, price_cents: int, count: int = 1) -> dict:
+    def place_order(
+        self,
+        ticker: str,
+        side: str,
+        price_cents: int,
+        count: int = 1,
+        action: str = "buy",
+    ) -> dict:
         """
-        Place a limit buy order on Kalshi.
+        Place a limit order on Kalshi.
+        action: "buy" (default) or "sell".
         Returns the order dict from the API response.
         Raises httpx.HTTPStatusError on failure.
         """
         body = {
             "ticker": ticker,
-            "action": "buy",
+            "action": action,
             "type": "limit",
             "time_in_force": "immediate_or_cancel",
             "side": side,
