@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import signal
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -358,15 +359,18 @@ def _reconcile_balance(db, sim, fetcher, log_file) -> None:
 # Main loop
 # ---------------------------------------------------------------------------
 
-def _wait_interruptible(seconds: int, price_event=None) -> bool:
+def _wait_interruptible(seconds: int, price_event=None, should_run_fn=None) -> bool:
     """
     Wait up to `seconds` for either a price update or a shutdown signal.
     If price_event is provided (streaming active), returns as soon as any
     price changes rather than sleeping the full interval.
+    should_run_fn: callable returning bool — defaults to the global _RUNNING flag.
     """
+    if should_run_fn is None:
+        should_run_fn = lambda: _RUNNING
     if price_event is not None:
         deadline = time.time() + seconds
-        while _RUNNING:
+        while should_run_fn():
             remaining = deadline - time.time()
             if remaining <= 0:
                 return True
@@ -377,7 +381,7 @@ def _wait_interruptible(seconds: int, price_event=None) -> bool:
         return False
     else:
         for _ in range(seconds):
-            if not _RUNNING:
+            if not should_run_fn():
                 return False
             time.sleep(1)
         return True
@@ -406,6 +410,7 @@ def run_live_simulation(
     ls_directional_margin_pct: float = 0.003,
     use_prediction: bool = False,
     use_streaming: bool = True,
+    stop_event: threading.Event | None = None,
 ) -> None:
     """
     Last-second price convergence sniper + optional headline prediction trades.
@@ -419,9 +424,15 @@ def run_live_simulation(
       B.  Fetch near-term Kalshi markets (updates last-second cache).
       B2. Prediction trades — Claude reviews headline signals and approves directional bets.
     """
-    global _RUNNING
-    _RUNNING = True
-    signal.signal(signal.SIGINT, _handle_sigint)
+    if stop_event is None:
+        global _RUNNING
+        _RUNNING = True
+        signal.signal(signal.SIGINT, _handle_sigint)
+        def _should_run() -> bool:
+            return _RUNNING
+    else:
+        def _should_run() -> bool:
+            return not stop_event.is_set()
 
     from src.fetchers.kalshi import KalshiFetcher
     from src.storage.models import SimSession, SimPosition
@@ -556,7 +567,7 @@ def run_live_simulation(
         last_log_scan_at = 0.0
         tick = 0
 
-        while _RUNNING:
+        while _should_run():
             tick += 1
             now = datetime.now(timezone.utc)
             now_ts = now.timestamp()
@@ -958,7 +969,7 @@ def run_live_simulation(
                             ).all()
                         }
                         for opp in pred_opps:
-                            if not _RUNNING:
+                            if not _should_run():
                                 break
                             _enter_prediction_bet(
                                 db, sim, pred_open_keys, opp, max_position_pct, log_file
@@ -981,9 +992,9 @@ def run_live_simulation(
                     _log(log_file, "  Bankroll depleted and no open positions -- stopping.")
                     break
 
-            if _RUNNING:
+            if _should_run():
                 price_event = stream_mgr.cache.update_event if stream_mgr is not None else None
-                _wait_interruptible(settle_interval_seconds, price_event)
+                _wait_interruptible(settle_interval_seconds, price_event, _should_run)
 
         # Shutdown
         if stream_mgr is not None:

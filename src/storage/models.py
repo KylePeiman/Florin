@@ -154,6 +154,8 @@ class SimSession(Base):
     lost = Column(Integer, default=0)
     voided = Column(Integer, default=0)
     opening_adjustment_cents = Column(Float, default=0.0, nullable=True)  # gap vs prev session end
+    pool_id = Column(Integer, nullable=True)       # groups sessions under one WorkerPool run
+    worker_index = Column(Integer, nullable=True)  # 0-based index within the pool
 
     positions = relationship("SimPosition", back_populates="session")
 
