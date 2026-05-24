@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kalshi Sniper</title>
   <style>
-    /* ── base ── */
+    /* ── reset + base ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --bg:       #0d1117;
@@ -20,44 +20,39 @@
       --orange:   #d29922;
       --radius:   10px;
     }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
+    html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
+
+    /* ── header ── */
+    header { padding: 16px 24px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    header h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: -.02em; flex: 1; min-width: 120px; }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .badge { font-size: 11px; color: var(--muted); background: var(--glass); border: 1px solid var(--border); border-radius: 99px; padding: 3px 10px; }
+    .refresh-btn { background: var(--glass); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 13px; transition: color .15s; }
+    .refresh-btn:hover { color: var(--text); }
 
     /* ── layout ── */
-    header { padding: 20px 24px 0; display: flex; align-items: center; gap: 12px; }
-    header h1 { font-size: 1.3rem; font-weight: 600; letter-spacing: -.02em; }
-    header .badge { font-size: 11px; color: var(--muted); background: var(--glass); border: 1px solid var(--border); border-radius: 99px; padding: 2px 10px; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px 40px; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px 48px; }
 
-    /* ── top-level tabs ── */
-    .top-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 20px 0 0; padding: 0 24px; }
-    .top-tab { background: none; border: none; color: var(--muted); font-size: 14px; font-weight: 500; padding: 10px 16px; cursor: pointer; position: relative; transition: color .15s; }
-    .top-tab:hover { color: var(--text); }
-    .top-tab.active { color: var(--text); }
-    .top-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--accent); border-radius: 2px 2px 0 0; }
-    .tab-panel { display: none; padding-top: 24px; }
-    .tab-panel.active { display: block; }
+    /* ── mode tabs (Live / Sim) ── */
+    .mode-bar { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 20px 0 0; }
+    .mode-tab { background: none; border: none; color: var(--muted); font-size: 13px; font-weight: 500; padding: 8px 16px; cursor: pointer; border-radius: var(--radius) var(--radius) 0 0; transition: color .15s, background .15s; }
+    .mode-tab:hover { color: var(--text); background: var(--glass); }
+    .mode-tab.active { color: var(--text); background: var(--glass); border: 1px solid var(--border); border-bottom: 1px solid var(--surface); }
 
     /* ── cards ── */
-    .card { background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); backdrop-filter: blur(8px); padding: 18px 20px; margin-bottom: 16px; }
-    .card-title { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+    .card { background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px; }
+    .card-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
 
-    /* ── metric cards ── */
-    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    /* ── metric grid ── */
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric { background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
     .metric .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-    .metric .value { font-size: 1.3rem; font-weight: 600; }
-    .metric .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .metric .value { font-size: 1.25rem; font-weight: 600; line-height: 1.2; }
+    .metric .sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
     .pos { color: var(--green); } .neg { color: var(--red); } .neutral { color: var(--orange); }
 
-    /* ── sub-tabs ── */
-    .sub-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
-    .sub-tab { background: none; border: none; color: var(--muted); font-size: 13px; padding: 7px 14px; cursor: pointer; border-radius: var(--radius) var(--radius) 0 0; transition: color .15s, background .15s; }
-    .sub-tab:hover { color: var(--text); background: var(--glass); }
-    .sub-tab.active { color: var(--text); background: var(--glass); border: 1px solid var(--border); border-bottom: 1px solid var(--surface); }
-    .sub-panel { display: none; } .sub-panel.active { display: block; }
-
     /* ── tables ── */
-    .tbl-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+    .tbl-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); -webkit-overflow-scrolling: touch; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th { background: var(--surface); color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 8px 12px; text-align: left; white-space: nowrap; }
     td { padding: 8px 12px; border-top: 1px solid var(--border); white-space: nowrap; }
@@ -67,21 +62,14 @@
     .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
     .pill-running { background: rgba(63,185,80,.15); color: var(--green); }
     .pill-stopped { background: rgba(125,133,144,.12); color: var(--muted); }
-    .pill-won  { background: rgba(63,185,80,.15);  color: var(--green); }
-    .pill-lost { background: rgba(248,81,73,.15);  color: var(--red); }
-    .pill-voided { background: rgba(210,153,34,.15); color: var(--orange); }
+    .pill-won     { background: rgba(63,185,80,.15);  color: var(--green); }
+    .pill-lost    { background: rgba(248,81,73,.15);  color: var(--red); }
+    .pill-voided  { background: rgba(210,153,34,.15); color: var(--orange); }
+    .pill-pool    { background: rgba(88,166,255,.15); color: var(--accent); }
 
     /* ── banner ── */
     .banner { padding: 10px 16px; border-radius: var(--radius); font-size: 13px; margin-bottom: 16px; }
-    .banner-info  { background: rgba(88,166,255,.1); border: 1px solid rgba(88,166,255,.25); color: var(--accent); }
-    .banner-warn  { background: rgba(210,153,34,.1); border: 1px solid rgba(210,153,34,.25); color: var(--orange); }
-    .banner-error { background: rgba(248,81,73,.1);  border: 1px solid rgba(248,81,73,.25);  color: var(--red); }
-    .hidden { display: none !important; }
-
-    /* ── balance card ── */
-    .balance-card { display: inline-flex; flex-direction: column; background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 28px; margin-bottom: 16px; }
-    .balance-card .lbl { font-size: 11px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
-    .balance-card .amt { font-size: 2rem; font-weight: 700; letter-spacing: -.02em; margin-top: 4px; }
+    .banner-warn { background: rgba(210,153,34,.1); border: 1px solid rgba(210,153,34,.25); color: var(--orange); }
 
     /* ── collapsible trade rows ── */
     .trade-row { cursor: pointer; user-select: none; }
@@ -97,244 +85,88 @@
     .chart-wrap { margin: 12px 0 4px; }
     canvas { display: block; width: 100%; border-radius: 6px; }
 
-    /* ── crypto ticker ── */
-    .ticker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-    .ticker-card { background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; transition: border-color .2s; }
-    .ticker-card:hover { border-color: rgba(88,166,255,.35); }
-    .ticker-card .pair { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .06em; }
-    .ticker-card .price { font-size: 1.5rem; font-weight: 700; margin: 6px 0 4px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-    .ticker-card .row2 { display: flex; gap: 8px; font-size: 12px; color: var(--muted); }
-    .ticker-card .chg { font-weight: 600; }
-    .ws-status { font-size: 12px; display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
-    .ws-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
-    .ws-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
-    .ws-dot.error { background: var(--red); }
-
     /* ── section divider ── */
     .divider { height: 1px; background: var(--border); margin: 20px 0; }
 
     /* ── no-data state ── */
     .no-data { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 13px; }
-    .no-data .icon { font-size: 2rem; margin-bottom: 10px; }
 
     /* ── caption ── */
     .caption { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+
+    /* ── mobile ── */
+    @media (max-width: 640px) {
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .hide-mobile { display: none !important; }
+      header { padding: 12px 16px 0; }
+      .container { padding: 0 12px 32px; }
+      td, th { padding: 6px 8px; }
+      .metric .value { font-size: 1.05rem; }
+    }
   </style>
 </head>
 <body>
 
 <header>
   <h1>⚡ Kalshi Sniper</h1>
-  <span class="badge" id="hdr-badge">Live Data</span>
+  <div class="header-right">
+    <span id="refresh-countdown" class="badge">—</span>
+    <button class="refresh-btn" onclick="manualRefresh()">↻ Refresh</button>
+  </div>
 </header>
 
-<nav class="top-tabs">
-  <button class="top-tab" data-tab="crypto">Crypto Ticker</button>
-  <button class="top-tab active" data-tab="kalshi">Kalshi Dashboard</button>
-</nav>
-
-<!-- ════════════════════ CRYPTO TICKER ════════════════════ -->
-<div class="container">
-<div id="panel-crypto" class="tab-panel">
-  <div class="ws-status">
-    <span class="ws-dot" id="ws-dot"></span>
-    <span id="ws-label">Connecting to Kraken…</span>
-  </div>
-  <div class="ticker-grid" id="ticker-grid"></div>
+<div class="mode-bar" style="margin-left:24px;margin-right:24px">
+  <button class="mode-tab active" data-mode="live" onclick="setViewMode('live')">Live</button>
+  <button class="mode-tab" data-mode="sim" onclick="setViewMode('sim')">Simulated</button>
 </div>
 
-<!-- ════════════════════ KALSHI DASHBOARD ════════════════════ -->
-<div id="panel-kalshi" class="tab-panel active">
+<div class="container" style="padding-top:20px">
 
-  <!-- data banner -->
-  <div id="dash-banner" class="banner banner-warn hidden">
+  <!-- warn banner -->
+  <div id="dash-banner" class="banner banner-warn" style="display:none">
     No data — run <code>python scripts/export_dashboard_data.py</code> to generate <code>docs/data.json</code>.
   </div>
-  <div id="dash-ts" class="caption hidden"></div>
+  <p id="dash-ts" class="caption" style="margin-bottom:12px;display:none"></p>
 
-  <!-- balance -->
-  <div id="dash-balance" class="hidden">
-    <div class="card-title">Account Balance</div>
-    <div class="balance-card">
-      <span class="lbl">Kalshi</span>
-      <span class="amt" id="bal-amt">—</span>
-    </div>
+  <!-- portfolio hero -->
+  <div id="portfolio-hero" style="display:none">
+    <div class="metrics" id="hero-metrics"></div>
+    <div class="divider"></div>
+  </div>
+
+  <!-- pool summary -->
+  <div id="dash-pools" style="display:none">
+    <div class="card-title">Worker Pools</div>
+    <div id="pools-all"></div>
     <div class="divider"></div>
   </div>
 
   <!-- sessions -->
-  <div id="dash-sessions" class="hidden">
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
-      <div class="card-title" style="margin:0">Sessions</div>
-      <div class="sub-tabs" style="margin:0;border-bottom:none">
-        <button class="sub-tab mode-tab active" data-mode="live">Live</button>
-        <button class="sub-tab mode-tab" data-mode="sim">Simulated</button>
-      </div>
-    </div>
+  <div id="dash-sessions" style="display:none">
+    <div class="card-title">Sessions</div>
     <div id="sess-all"></div>
     <div class="divider"></div>
   </div>
 
   <!-- open positions -->
-  <div id="dash-open" class="hidden">
+  <div id="dash-open" style="display:none">
     <div class="card-title">Open Positions</div>
-    <p class="caption">Positions from active (running) sessions only.</p>
+    <p class="caption">From active (running) sessions only.</p>
     <div id="open-all"></div>
     <div class="divider"></div>
   </div>
 
   <!-- trade history -->
-  <div id="dash-history" class="hidden">
+  <div id="dash-history" style="display:none">
     <div class="card-title">Trade History</div>
     <div id="hist-all"></div>
   </div>
 
-</div><!-- /panel-kalshi -->
-</div><!-- /container -->
+</div>
 
 <script>
 // ══════════════════════════════════════════════════════════════
-// TAB SWITCHING
-// ══════════════════════════════════════════════════════════════
-let dashLoaded = false;
-
-document.querySelectorAll('.top-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.top-tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'kalshi' && !dashLoaded) {
-      dashLoaded = true;
-      loadDashboardData();
-    }
-  });
-});
-
-
-// ══════════════════════════════════════════════════════════════
-// CRYPTO TICKER — Kraken WebSocket v2
-// ══════════════════════════════════════════════════════════════
-const PAIRS = ['BTC/USD','ETH/USD','SOL/USD','XRP/USD','DOGE/USD','AVAX/USD'];
-const PAIR_LABELS = {'BTC/USD':'Bitcoin','ETH/USD':'Ethereum','SOL/USD':'Solana',
-  'XRP/USD':'XRP','DOGE/USD':'Dogecoin','AVAX/USD':'Avalanche'};
-
-const tickerState = {};
-PAIRS.forEach(p => {
-  tickerState[p] = { last: null, change_pct: null, bid: null, ask: null, high: null, low: null };
-});
-
-function initTickerGrid() {
-  const grid = document.getElementById('ticker-grid');
-  PAIRS.forEach(p => {
-    const card = document.createElement('div');
-    card.className = 'ticker-card';
-    card.id = 'tc-' + p.replace('/','_');
-    card.innerHTML = `
-      <div class="pair">${p} &nbsp;<span style="font-weight:400;color:var(--muted)">${PAIR_LABELS[p]||''}</span></div>
-      <div class="price" id="tp-${p.replace('/','_')}">—</div>
-      <div class="row2">
-        <span class="chg" id="tc-chg-${p.replace('/','_')}">—</span>
-        <span id="tc-hl-${p.replace('/','_')}">—</span>
-      </div>`;
-    grid.appendChild(card);
-  });
-}
-
-function updateTickerCard(p, data) {
-  const key = p.replace('/','_');
-  const s = tickerState[p];
-  if (data.last   != null) s.last       = data.last;
-  if (data.change_pct != null) s.change_pct = data.change_pct;
-  if (data.bid    != null) s.bid        = data.bid;
-  if (data.ask    != null) s.ask        = data.ask;
-  if (data.high   != null) s.high       = data.high;
-  if (data.low    != null) s.low        = data.low;
-
-  const priceEl = document.getElementById('tp-' + key);
-  const chgEl   = document.getElementById('tc-chg-' + key);
-  const hlEl    = document.getElementById('tc-hl-' + key);
-  if (!priceEl) return;
-
-  if (s.last != null) {
-    const fmt = s.last >= 1000
-      ? s.last.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})
-      : s.last < 0.01
-        ? s.last.toFixed(6)
-        : s.last.toFixed(4);
-    priceEl.textContent = '$' + fmt;
-  }
-
-  if (s.change_pct != null) {
-    const sign = s.change_pct >= 0 ? '+' : '';
-    chgEl.textContent = sign + s.change_pct.toFixed(2) + '%';
-    chgEl.className = 'chg ' + (s.change_pct >= 0 ? 'pos' : 'neg');
-  }
-
-  if (s.high != null && s.low != null) {
-    const fmtHL = v => v >= 1000 ? v.toLocaleString('en-US',{maximumFractionDigits:0})
-      : v < 0.01 ? v.toFixed(5) : v.toFixed(3);
-    hlEl.textContent = `H: ${fmtHL(s.high)}  L: ${fmtHL(s.low)}`;
-  }
-}
-
-function setWsStatus(state) {
-  const dot = document.getElementById('ws-dot');
-  const lbl = document.getElementById('ws-label');
-  if (state === 'connected') {
-    dot.className = 'ws-dot connected';
-    lbl.textContent = 'Kraken — Live';
-  } else if (state === 'error') {
-    dot.className = 'ws-dot error';
-    lbl.textContent = 'Kraken — Disconnected';
-  } else {
-    dot.className = 'ws-dot';
-    lbl.textContent = 'Kraken — Connecting…';
-  }
-}
-
-function connectKraken() {
-  let ws;
-  let reconnectDelay = 2000;
-
-  function connect() {
-    ws = new WebSocket('wss://ws.kraken.com/v2');
-
-    ws.onopen = () => {
-      setWsStatus('connected');
-      reconnectDelay = 2000;
-      ws.send(JSON.stringify({
-        method: 'subscribe',
-        params: { channel: 'ticker', symbol: PAIRS }
-      }));
-    };
-
-    ws.onmessage = e => {
-      let msg;
-      try { msg = JSON.parse(e.data); } catch { return; }
-      if (msg.channel !== 'ticker') return;
-      const items = Array.isArray(msg.data) ? msg.data : [];
-      items.forEach(d => {
-        if (d.symbol && tickerState[d.symbol] !== undefined) {
-          updateTickerCard(d.symbol, d);
-        }
-      });
-    };
-
-    ws.onerror = () => setWsStatus('error');
-
-    ws.onclose = () => {
-      setWsStatus('error');
-      setTimeout(connect, reconnectDelay);
-      reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
-    };
-  }
-
-  connect();
-}
-
-// ══════════════════════════════════════════════════════════════
-// DASHBOARD — data.json loader + renderer
+// DATA LOADING
 // ══════════════════════════════════════════════════════════════
 
 const GIST_URL = 'https://gist.githubusercontent.com/KylePeiman/647660296d9b6f59377b879d655907e6/raw/data.json';
@@ -347,178 +179,225 @@ function setViewMode(mode) {
   document.querySelectorAll('.mode-tab').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === mode);
   });
-  if (!dashData) return;
-  renderSessionsSection(dashData.sessions || {});
-  renderOpenSection(dashData.open_positions || {});
-  renderHistorySection(dashData.trade_history || {});
+  if (dashData) renderDashboard(dashData);
 }
-
-document.querySelectorAll('.mode-tab').forEach(btn => {
-  btn.addEventListener('click', () => setViewMode(btn.dataset.mode));
-});
 
 async function loadDashboardData() {
   try {
     const resp = await fetch(GIST_URL + '?_=' + Date.now());
     if (!resp.ok) throw new Error('not found');
-    const data = await resp.json();
-    dashData = data;
-    renderDashboard(data);
+    dashData = await resp.json();
+    renderDashboard(dashData);
   } catch (_) {
-    document.getElementById('dash-banner').classList.remove('hidden');
+    document.getElementById('dash-banner').style.display = '';
   }
 }
+
+// ── Refresh countdown ──
+let _nextRefresh = Date.now() + 30000;
+function manualRefresh() { _nextRefresh = Date.now() + 30000; loadDashboardData(); }
+setInterval(() => {
+  const remaining = Math.max(0, Math.ceil((_nextRefresh - Date.now()) / 1000));
+  document.getElementById('refresh-countdown').textContent = remaining + 's';
+  if (remaining <= 0) { _nextRefresh = Date.now() + 30000; loadDashboardData(); }
+}, 1000);
+
+// ══════════════════════════════════════════════════════════════
+// RENDER ORCHESTRATOR
+// ══════════════════════════════════════════════════════════════
 
 function renderDashboard(data) {
-  // timestamp
   const tsEl = document.getElementById('dash-ts');
   tsEl.textContent = 'Data as of ' + (data.generated_at || '—');
-  tsEl.classList.remove('hidden');
+  tsEl.style.display = '';
 
-  // balance
-  if (data.balance_dollars != null) {
-    document.getElementById('bal-amt').textContent = '$' + data.balance_dollars.toFixed(2);
-    document.getElementById('dash-balance').classList.remove('hidden');
-  }
-
-  // sessions
+  renderHero(data);
+  renderPoolSection(data.pool_summary || []);
   renderSessionsSection(data.sessions || {});
-  document.getElementById('dash-sessions').classList.remove('hidden');
-
-  // open positions
   renderOpenSection(data.open_positions || {});
-  document.getElementById('dash-open').classList.remove('hidden');
-
-  // trade history
   renderHistorySection(data.trade_history || {});
-  document.getElementById('dash-history').classList.remove('hidden');
+
+  document.getElementById('dash-sessions').style.display = '';
+  document.getElementById('dash-open').style.display = '';
+  document.getElementById('dash-history').style.display = '';
 }
 
-// ── sessions ──────────────────────────────────────────────────
-function renderSessionsSection(sessions) {
-  const sim  = (sessions.sim  || []).map(r => ({...r, _type:'sim'}));
-  const live = (sessions.live || []).map(r => ({...r, _type:'live'}));
-  const all  = viewMode === 'live' ? live : sim;
-  const el   = document.getElementById('sess-all');
-  if (!all.length) { el.innerHTML = noData(`No ${viewMode} sessions yet.`); return; }
+// ── Portfolio hero ──
+function renderHero(data) {
+  const allSessions = [...(data.sessions.live || []), ...(data.sessions.sim || [])];
+  const running = allSessions.filter(s => s.status === 'running');
+  const totalCapital = running.reduce((s, r) => s + r.balance, 0);
+  const totalPnl = allSessions.reduce((s, r) => s + r.pnl, 0);
+  const allTrades = [...(data.trade_history.live || []), ...(data.trade_history.sim || [])];
+  const wins = allTrades.filter(t => t.result === 'WON').length;
+  const losses = allTrades.filter(t => t.result === 'LOST').length;
+  const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100) : null;
+  const pnlCls = totalPnl >= 0 ? 'pos' : 'neg';
 
-  const running = all.filter(r => r.status === 'running');
-  const target = running.length ? running[0] : all[0];
-  const pnlClass = target.pnl >= 0 ? 'pos' : 'neg';
-  const gainSign = target.gain_pct >= 0 ? '+' : '';
-  const totalPnl = all.reduce((s, r) => s + r.pnl, 0);
+  document.getElementById('hero-metrics').innerHTML = `
+    <div class="metric">
+      <div class="label">Total Capital</div>
+      <div class="value">$${totalCapital.toFixed(2)}</div>
+      <div class="sub">${running.length} active session${running.length !== 1 ? 's' : ''}</div>
+    </div>
+    <div class="metric">
+      <div class="label">All-time P&L</div>
+      <div class="value ${pnlCls}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</div>
+    </div>
+    <div class="metric">
+      <div class="label">Win Rate</div>
+      <div class="value">${winRate !== null ? winRate.toFixed(1) + '%' : '—'}</div>
+      <div class="sub">${wins}W / ${losses}L</div>
+    </div>
+    ${data.balance_dollars != null ? `
+    <div class="metric">
+      <div class="label">Kalshi Balance</div>
+      <div class="value">$${data.balance_dollars.toFixed(2)}</div>
+    </div>` : ''}`;
+
+  document.getElementById('portfolio-hero').style.display = '';
+}
+
+// ── Pool summary ──
+function renderPoolSection(pools) {
+  if (!pools || !pools.length) { document.getElementById('dash-pools').style.display = 'none'; return; }
+  const hdr = `<tr>${['Pool ID','Workers','Active','Capital ($)','P&L ($)','Trades','W / L']
+    .map(h => `<th>${h}</th>`).join('')}</tr>`;
+  const body = pools.map(p => {
+    const pnlCls = p.pnl_dollars >= 0 ? 'pos' : 'neg';
+    return `<tr>
+      <td><span class="pill pill-pool">#${p.pool_id}</span></td>
+      <td>${p.workers_total}</td>
+      <td>${p.workers_active}</td>
+      <td>$${p.value_dollars.toFixed(2)} <span style="color:var(--muted);font-size:11px">(was $${p.initial_dollars.toFixed(2)})</span></td>
+      <td class="${pnlCls}">${p.pnl_dollars >= 0 ? '+' : ''}$${p.pnl_dollars.toFixed(4)}</td>
+      <td>${p.total_trades}</td>
+      <td>${p.won} / ${p.lost}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('pools-all').innerHTML = `<div class="tbl-wrap"><table><thead>${hdr}</thead><tbody>${body}</tbody></table></div>`;
+  document.getElementById('dash-pools').style.display = '';
+}
+
+// ── Sessions ──
+function renderSessionsSection(sessions) {
+  const rows = viewMode === 'live' ? (sessions.live || []) : (sessions.sim || []);
+  const el = document.getElementById('sess-all');
+  if (!rows.length) { el.innerHTML = noData(`No ${viewMode} sessions yet.`); return; }
+
+  const running = rows.filter(r => r.status === 'running');
+  const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
   const totalPnlCls = totalPnl >= 0 ? 'pos' : 'neg';
+  const cur = running.length ? running[0] : rows[0];
+  const curPnlCls = cur.pnl >= 0 ? 'pos' : 'neg';
 
   el.innerHTML = `
-    <div class="metrics">
+    <div class="metrics" style="margin-bottom:14px">
       <div class="metric">
         <div class="label">Active Session</div>
-        <div class="value">#${target.id} ${pillType(target._type)}</div>
-        <div class="sub">${pillStatus(target.status)}</div>
+        <div class="value">#${cur.id}</div>
+        <div class="sub">${pillStatus(cur.status)}</div>
       </div>
       <div class="metric">
         <div class="label">Balance</div>
-        <div class="value">$${target.balance.toFixed(4)}</div>
+        <div class="value">$${cur.balance.toFixed(4)}</div>
       </div>
       <div class="metric">
-        <div class="label">Session P&amp;L</div>
-        <div class="value ${pnlClass}">${target.pnl >= 0 ? '+' : ''}$${target.pnl.toFixed(4)}</div>
-        <div class="sub ${pnlClass}">${gainSign}${target.gain_pct.toFixed(2)}%</div>
+        <div class="label">Session P&L</div>
+        <div class="value ${curPnlCls}">${cur.pnl >= 0 ? '+' : ''}$${cur.pnl.toFixed(4)}</div>
+        <div class="sub ${curPnlCls}">${cur.gain_pct >= 0 ? '+' : ''}${cur.gain_pct.toFixed(2)}%</div>
       </div>
       <div class="metric">
-        <div class="label">All-time P&amp;L</div>
+        <div class="label">All Sessions P&L</div>
         <div class="value ${totalPnlCls}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</div>
       </div>
       <div class="metric">
         <div class="label">W / L / V</div>
-        <div class="value" style="font-size:1rem">${target.w} / ${target.l} / ${target.v}</div>
+        <div class="value" style="font-size:1rem">${cur.w} / ${cur.l} / ${cur.v}</div>
       </div>
     </div>
-    <div class="tbl-wrap">${sessionsTable(all)}</div>`;
+    <div class="tbl-wrap">${sessionsTable(rows)}</div>`;
 }
 
 function sessionsTable(rows) {
-  const hdr = `<tr>${['ID','Type','Started','Status','Strategy','Balance ($)','P&amp;L ($)','Gain %','Trades','W','L','V']
-    .map(h => `<th>${h}</th>`).join('')}</tr>`;
+  const hdr = `<tr>
+    <th>ID</th><th>Started</th><th>Status</th>
+    <th class="hide-mobile">Pool</th>
+    <th>Balance ($)</th><th>P&L ($)</th><th>Gain %</th>
+    <th class="hide-mobile">Trades</th>
+    <th>W</th><th>L</th>
+    <th class="hide-mobile">V</th>
+  </tr>`;
   const body = rows.map(r => {
     const pnlCls = r.pnl >= 0 ? 'pos' : 'neg';
-    const gainSign = r.gain_pct >= 0 ? '+' : '';
+    const poolCell = r.pool_id != null
+      ? `<span class="pill pill-pool">#${r.pool_id}</span>`
+      : `<span style="color:var(--muted)">—</span>`;
     return `<tr>
       <td>${r.id}</td>
-      <td>${pillType(r._type)}</td>
       <td>${esc(r.started)}</td>
       <td>${pillStatus(r.status)}</td>
-      <td>${esc(r.strategy)}</td>
+      <td class="hide-mobile">${poolCell}</td>
       <td>$${r.balance.toFixed(4)}</td>
       <td class="${pnlCls}">${r.pnl >= 0 ? '+' : ''}$${r.pnl.toFixed(4)}</td>
-      <td class="${pnlCls}">${gainSign}${r.gain_pct.toFixed(2)}%</td>
-      <td>${r.trades}</td>
-      <td>${r.w}</td><td>${r.l}</td><td>${r.v}</td>
+      <td class="${pnlCls}">${r.gain_pct >= 0 ? '+' : ''}${r.gain_pct.toFixed(2)}%</td>
+      <td class="hide-mobile">${r.trades}</td>
+      <td>${r.w}</td><td>${r.l}</td>
+      <td class="hide-mobile">${r.v}</td>
     </tr>`;
   }).join('');
   return `<table><thead>${hdr}</thead><tbody>${body}</tbody></table>`;
 }
 
-// ── open positions ────────────────────────────────────────────
+// ── Open positions ──
 function renderOpenSection(open) {
-  const sim  = (open.sim  || []).map(r => ({...r, _type:'sim'}));
-  const live = (open.live || []).map(r => ({...r, _type:'live'}));
-  const all  = viewMode === 'live' ? live : sim;
-  const el   = document.getElementById('open-all');
-  if (!all.length) { el.innerHTML = noData(`No open ${viewMode} positions.`); return; }
-  const totalCost = all.reduce((s, r) => s + r.cost, 0);
+  const rows = viewMode === 'live' ? (open.live || []) : (open.sim || []);
+  const el = document.getElementById('open-all');
+  if (!rows.length) { el.innerHTML = noData(`No open ${viewMode} positions.`); return; }
+  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
   el.innerHTML = `
-    <p class="caption">${all.length} position${all.length !== 1 ? 's' : ''} · $${totalCost.toFixed(4)} locked</p>
-    <div class="tbl-wrap">${openTable(all)}</div>`;
+    <p class="caption">${rows.length} position${rows.length !== 1 ? 's' : ''} · $${totalCost.toFixed(4)} locked</p>
+    <div class="tbl-wrap">${openTable(rows)}</div>`;
 }
 
 function openTable(rows) {
-  const hdr = `<tr>${['Session','Type','Strategy','Event','Contracts','Cost ($)','Entered']
-    .map(h => `<th>${h}</th>`).join('')}</tr>`;
+  const hdr = `<tr>
+    <th>Session</th><th>Type</th><th>Event</th>
+    <th class="hide-mobile">Contracts</th>
+    <th>Cost ($)</th><th>Entered</th>
+  </tr>`;
   const body = rows.map(r => `<tr>
     <td>${r.session}</td>
-    <td>${pillType(r._type)}</td>
     <td>${esc(r.type)}</td>
     <td>${esc(r.event)}</td>
-    <td>${r.contracts}</td>
+    <td class="hide-mobile">${r.contracts}</td>
     <td>$${r.cost.toFixed(4)}</td>
     <td>${esc(r.entered)}</td>
   </tr>`).join('');
   return `<table><thead>${hdr}</thead><tbody>${body}</tbody></table>`;
 }
 
-// ── trade history ─────────────────────────────────────────────
+// ── Trade history ──
 function renderHistorySection(history) {
-  const sim  = (history.sim  || []).map(r => ({...r, _type:'sim'}));
-  const live = (history.live || []).map(r => ({...r, _type:'live'}));
-  const all  = viewMode === 'live' ? live : sim;
-  renderHistoryPane(all, 'hist-all');
+  const rows = viewMode === 'live' ? (history.live || []) : (history.sim || []);
+  renderHistoryPane(rows, 'hist-all');
 }
 
 function renderHistoryPane(arbs, containerId) {
   const el = document.getElementById(containerId);
-  if (!arbs.length) {
-    el.innerHTML = noData('No settled trades yet.');
-    return;
-  }
+  if (!arbs.length) { el.innerHTML = noData('No settled trades yet.'); return; }
 
   const wins   = arbs.filter(a => a.result === 'WON').length;
   const losses = arbs.filter(a => a.result === 'LOST').length;
   const voids  = arbs.filter(a => a.result === 'VOIDED').length;
   const totalPnl = arbs.reduce((s, a) => s + a.pnl, 0);
   const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100) : 0;
-  const pnlClass = totalPnl >= 0 ? 'pos' : 'neg';
+  const pnlCls = totalPnl >= 0 ? 'pos' : 'neg';
 
-  // strategy breakdown
   const typeCounts = {};
-  const typePnl = {};
-  arbs.forEach(a => {
-    typeCounts[a.type] = (typeCounts[a.type] || 0) + 1;
-    typePnl[a.type] = (typePnl[a.type] || 0) + a.pnl;
-  });
+  arbs.forEach(a => { typeCounts[a.type] = (typeCounts[a.type] || 0) + 1; });
   const types = Object.keys(typeCounts);
 
-  // cumulative pnl data
   const cumData = [];
   let running = 0;
   [...arbs].reverse().forEach(a => { running += a.pnl; cumData.push(running); });
@@ -533,7 +412,7 @@ function renderHistoryPane(arbs, containerId) {
       <div class="metric"><div class="label">Wins</div><div class="value pos">${wins}</div></div>
       <div class="metric"><div class="label">Losses</div><div class="value neg">${losses}</div></div>
       <div class="metric"><div class="label">Win Rate</div><div class="value">${winRate.toFixed(1)}%</div></div>
-      <div class="metric"><div class="label">Total P&amp;L</div><div class="value ${pnlClass}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</div></div>
+      <div class="metric"><div class="label">Total P&L</div><div class="value ${pnlCls}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</div></div>
     </div>
     <div class="chart-wrap">
       <div class="caption">Cumulative P&L ($)</div>
@@ -544,23 +423,16 @@ function renderHistoryPane(arbs, containerId) {
       <canvas id="${barCanvasId}" height="80"></canvas>
     </div>` : ''}
     <div class="divider"></div>
-    <div class="tbl-wrap" id="${containerId}-table">
-      ${historyTable(arbs, containerId)}
-    </div>`;
+    <div class="tbl-wrap">${historyTable(arbs, containerId)}</div>`;
 
-  // draw charts after DOM update
   requestAnimationFrame(() => {
     drawLineChart(document.getElementById(canvasId), cumData);
-    if (showBar) {
-      drawBarChart(document.getElementById(barCanvasId), types, types.map(t => typeCounts[t]));
-    }
+    if (showBar) drawBarChart(document.getElementById(barCanvasId), types, types.map(t => typeCounts[t]));
   });
 
-  // wire up collapsible rows
   el.querySelectorAll('.trade-row').forEach(row => {
     row.addEventListener('click', () => {
-      const detailId = row.dataset.detail;
-      const detailEl = document.getElementById(detailId);
+      const detailEl = document.getElementById(row.dataset.detail);
       const isOpen = row.classList.toggle('open');
       detailEl.style.display = isOpen ? '' : 'none';
     });
@@ -568,9 +440,14 @@ function renderHistoryPane(arbs, containerId) {
 }
 
 function historyTable(arbs, baseId) {
-  const hdr = `<tr><th></th>${['Result','Mode','Type','Event','Contracts','Cost ($)','P&amp;L ($)','ROI %','Settled']
-    .map(h => `<th>${h}</th>`).join('')}</tr>`;
-
+  const hdr = `<tr>
+    <th></th>
+    <th>Result</th><th>Type</th><th>Event</th>
+    <th class="hide-mobile">Contracts</th>
+    <th>Cost ($)</th><th>P&L ($)</th>
+    <th class="hide-mobile">ROI %</th>
+    <th>Settled</th>
+  </tr>`;
   const body = arbs.map((a, i) => {
     const rid = baseId + '-d' + i;
     const resultCls = { WON: 'pos', LOST: 'neg', VOIDED: 'neutral' }[a.result] || '';
@@ -594,20 +471,18 @@ function historyTable(arbs, baseId) {
       <tr class="trade-row" data-detail="${rid}">
         <td><span class="expand-icon">▶</span></td>
         <td class="${resultCls}">${pillResult(a.result)}</td>
-        <td>${pillType(a._type)}</td>
         <td>${esc(a.type)}</td>
         <td title="${esc(a.event)}">${esc(a.event.length>45 ? a.event.slice(0,45)+'…' : a.event)}</td>
-        <td>${a.contracts}</td>
+        <td class="hide-mobile">${a.contracts}</td>
         <td>$${a.cost.toFixed(4)}</td>
         <td class="${pnlCls}">${a.pnl>=0?'+':''}$${a.pnl.toFixed(4)}</td>
-        <td class="${roiCls}">${a.roi>=0?'+':''}${a.roi.toFixed(2)}%</td>
+        <td class="${roiCls} hide-mobile">${a.roi>=0?'+':''}${a.roi.toFixed(2)}%</td>
         <td>${esc(a.settled)}</td>
       </tr>
       <tr class="trade-detail" id="${rid}" style="display:none">
-        <td colspan="10">${legHtml}</td>
+        <td colspan="9">${legHtml}</td>
       </tr>`;
   }).join('');
-
   return `<table><thead>${hdr}</thead><tbody>${body}</tbody></table>`;
 }
 
@@ -628,15 +503,13 @@ function drawLineChart(canvas, data) {
   const pad = { t: 12, r: 12, b: 24, l: 52 };
   const cw = W - pad.l - pad.r;
   const ch = H - pad.t - pad.b;
-
   const mn = Math.min(0, ...data);
   const mx = Math.max(0, ...data);
   const range = mx - mn || 1;
 
-  function xp(i)  { return pad.l + (i / (data.length - 1 || 1)) * cw; }
-  function yp(v)  { return pad.t + ch - ((v - mn) / range) * ch; }
+  function xp(i) { return pad.l + (i / (data.length - 1 || 1)) * cw; }
+  function yp(v) { return pad.t + ch - ((v - mn) / range) * ch; }
 
-  // grid + zero line
   ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 1;
   [0.0, 0.25, 0.5, 0.75, 1.0].forEach(t => {
@@ -656,13 +529,11 @@ function drawLineChart(canvas, data) {
   ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(pad.l + cw, zeroY); ctx.stroke();
   ctx.setLineDash([]);
 
-  // filled area
   const lastVal = data[data.length - 1];
   const fillColor = lastVal >= 0 ? 'rgba(63,185,80,' : 'rgba(248,81,73,';
   const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + ch);
   grad.addColorStop(0, fillColor + '0.25)');
   grad.addColorStop(1, fillColor + '0.02)');
-
   ctx.beginPath();
   ctx.moveTo(xp(0), yp(data[0]));
   data.forEach((v, i) => { if (i > 0) ctx.lineTo(xp(i), yp(v)); });
@@ -672,7 +543,6 @@ function drawLineChart(canvas, data) {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // line
   ctx.beginPath();
   ctx.moveTo(xp(0), yp(data[0]));
   data.forEach((v, i) => { if (i > 0) ctx.lineTo(xp(i), yp(v)); });
@@ -702,17 +572,14 @@ function drawBarChart(canvas, labels, values) {
   labels.forEach((lbl, i) => {
     const y = pad.t + gap + i * (barH + gap);
     const bw = (values[i] / maxVal) * cw;
-
     ctx.fillStyle = '#58a6ff';
     ctx.beginPath();
     ctx.roundRect(pad.l, y, bw, barH, 3);
     ctx.fill();
-
     ctx.fillStyle = 'rgba(125,133,144,0.9)';
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(lbl, pad.l - 6, y + barH / 2 + 4);
-
     ctx.fillStyle = 'rgba(230,237,243,0.8)';
     ctx.textAlign = 'left';
     ctx.fillText(values[i], pad.l + bw + 6, y + barH / 2 + 4);
@@ -726,7 +593,7 @@ function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function noData(msg) {
-  return `<div class="no-data"><div class="icon">—</div>${esc(msg)}</div>`;
+  return `<div class="no-data">${esc(msg)}</div>`;
 }
 function pillStatus(s) {
   const map = { running: 'pill-running', stopped: 'pill-stopped' };
@@ -736,20 +603,11 @@ function pillResult(r) {
   const map = { WON: 'pill-won', LOST: 'pill-lost', VOIDED: 'pill-voided' };
   return `<span class="pill ${map[r]||''}">${esc(r)}</span>`;
 }
-function pillType(t) {
-  return t === 'live'
-    ? `<span class="pill pill-running">Live</span>`
-    : `<span class="pill pill-stopped">Sim</span>`;
-}
 
 // ══════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════
-initTickerGrid();
-connectKraken();
-dashLoaded = true;
 loadDashboardData();
-setInterval(loadDashboardData, 30000);
 </script>
 </body>
 </html>

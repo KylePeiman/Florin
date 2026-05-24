@@ -1,46 +1,52 @@
 {
-  "generated_at": "2026-04-01T05:02:55Z",
-  "balance_dollars": 5.29,
+  "generated_at": "2026-05-24T20:38:11Z",
+  "balance_dollars": 0.0,
   "sessions": {
     "sim": [
       {
         "id": 33,
         "started": "2026-03-29 15:28",
         "status": "running",
-        "strategy": "Weather",
+        "strategy": "\u2014",
         "balance": 9.61,
         "pnl": -0.39,
         "gain_pct": -3.9,
         "trades": 29,
         "w": 0,
         "l": 1,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 32,
         "started": "2026-03-28 13:34",
         "status": "stopped",
-        "strategy": "Weather",
+        "strategy": "\u2014",
         "balance": 9.76,
         "pnl": -0.24,
         "gain_pct": -2.4,
         "trades": 1,
         "w": 0,
         "l": 1,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 31,
         "started": "2026-03-27 20:43",
         "status": "stopped",
-        "strategy": "Weather",
+        "strategy": "\u2014",
         "balance": 0.01,
         "pnl": -9.99,
         "gain_pct": -99.9,
         "trades": 70,
         "w": 2,
         "l": 3,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 30,
@@ -53,7 +59,9 @@
         "trades": 0,
         "w": 0,
         "l": 0,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       }
     ],
     "live": [
@@ -62,13 +70,15 @@
         "started": "2026-03-30 15:41",
         "status": "running",
         "strategy": "Last-Sec",
-        "balance": 5.44,
-        "pnl": -0.05,
-        "gain_pct": -0.91,
+        "balance": 5.29,
+        "pnl": -0.2,
+        "gain_pct": -3.64,
         "trades": 64,
         "w": 60,
         "l": 4,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 29,
@@ -81,7 +91,9 @@
         "trades": 189,
         "w": 165,
         "l": 5,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 28,
@@ -94,7 +106,9 @@
         "trades": 3,
         "w": 0,
         "l": 0,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 23,
@@ -107,7 +121,9 @@
         "trades": 24,
         "w": 18,
         "l": 6,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 22,
@@ -120,7 +136,9 @@
         "trades": 48,
         "w": 46,
         "l": 1,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 19,
@@ -133,7 +151,9 @@
         "trades": 46,
         "w": 37,
         "l": 9,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 14,
@@ -146,7 +166,9 @@
         "trades": 11,
         "w": 9,
         "l": 2,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 13,
@@ -159,7 +181,9 @@
         "trades": 9,
         "w": 8,
         "l": 1,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 12,
@@ -172,7 +196,9 @@
         "trades": 24,
         "w": 24,
         "l": 0,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       },
       {
         "id": 10,
@@ -185,7 +211,9 @@
         "trades": 97,
         "w": 94,
         "l": 3,
-        "v": 0
+        "v": 0,
+        "pool_id": null,
+        "worker_index": null
       }
     ]
   },
@@ -10923,5 +10951,6 @@
         ]
       }
     ]
-  }
+  },
+  "pool_summary": []
 }
