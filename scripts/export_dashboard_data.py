@@ -34,7 +34,6 @@ _TYPE_LABELS: dict[str, str] = {
     "SERIES":      "Series Arb",
     "CROSS":       "Cross-Arb",
     "DIRECTIONAL": "Directional",
-    "WEATHER":     "Weather",
 }
 
 
@@ -90,8 +89,6 @@ def _session_strategy(session) -> str:
     parts = []
     if "+LAST-SEC" in header or any(p.arb_type == "last_second" for p in session.positions):
         parts.append("Last-Sec")
-    if any(p.arb_type == "weather" for p in session.positions):
-        parts.append("Weather")
     if "+PREDICTION" in header or any(
         p.arb_type is None and p.ev and p.ev > 0 for p in session.positions
     ):
@@ -126,6 +123,8 @@ def export_sessions(db) -> tuple[list[dict], list[dict]]:
             "w": s.won,
             "l": s.lost,
             "v": s.voided,
+            "pool_id": getattr(s, "pool_id", None),
+            "worker_index": getattr(s, "worker_index", None),
         }
         (live_rows if _is_live_session(s) else sim_rows).append(record)
     return sim_rows, live_rows
@@ -311,6 +310,34 @@ def push_to_gist(content: str) -> bool:
         return False
 
 
+# ── pool summaries ────────────────────────────────────────────────────────────
+
+def export_pool_summaries(db) -> list[dict]:
+    from src.storage.models import SimSession
+    rows = db.query(SimSession).filter(SimSession.pool_id.isnot(None)).all()
+    pools: dict[int, list] = {}
+    for s in rows:
+        pools.setdefault(s.pool_id, []).append(s)
+
+    result = []
+    for pool_id, sessions in pools.items():
+        initial = sum(s.initial_bankroll_cents for s in sessions)
+        current = sum(s.total_value_cents() for s in sessions)
+        result.append({
+            "pool_id": pool_id,
+            "workers_total": len(sessions),
+            "workers_active": sum(1 for s in sessions if s.status == "running"),
+            "initial_dollars": round(initial / 100, 2),
+            "value_dollars": round(current / 100, 2),
+            "pnl_dollars": round((current - initial) / 100, 4),
+            "total_trades": sum(s.total_trades for s in sessions),
+            "won": sum(s.won for s in sessions),
+            "lost": sum(s.lost for s in sessions),
+        })
+    result.sort(key=lambda x: x["pool_id"], reverse=True)
+    return result
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -328,6 +355,7 @@ def main() -> None:
     sim_sessions, live_sessions = export_sessions(db)
     sim_open, live_open = export_open_positions(db)
     sim_hist, live_hist = export_trade_history(db)
+    pool_summaries = export_pool_summaries(db)
 
     data = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -335,6 +363,7 @@ def main() -> None:
         "sessions": {"sim": sim_sessions, "live": live_sessions},
         "open_positions": {"sim": sim_open, "live": live_open},
         "trade_history": {"sim": sim_hist, "live": live_hist},
+        "pool_summary": pool_summaries,
     }
 
     content = json.dumps(data, indent=2)
@@ -350,6 +379,7 @@ def main() -> None:
     print(f"  sessions     : {len(sim_sessions)} sim, {len(live_sessions)} live")
     print(f"  open pos     : {len(sim_open)} sim, {len(live_open)} live")
     print(f"  history      : {len(sim_hist)} sim, {len(live_hist)} live")
+    print(f"  pools        : {len(pool_summaries)}")
 
 
 if __name__ == "__main__":

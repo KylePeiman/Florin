@@ -259,6 +259,8 @@ def simulate_list(status: str | None, limit: int):
               help="Max allowed price movement fraction in stability window (0.003 = 0.3%).")
 @click.option("--ls-directional-margin", default=0.003, type=float, show_default=True,
               help="Min pct spot must be above/below floor_strike for 15M directional entries.")
+@click.option("--pool", is_flag=True, default=False,
+              help="Worker pool mode: floor(bankroll) parallel $1 workers, each resets at $10.")
 def live_cmd(
     mode: str | None,
     bankroll: float,
@@ -281,6 +283,7 @@ def live_cmd(
     ls_stability_window: int,
     ls_stability_threshold: float,
     ls_directional_margin: float,
+    pool: bool,
 ):
     """Run the last-second sniper with full options.
 
@@ -288,6 +291,8 @@ def live_cmd(
     """
     if mode is None:
         raise click.UsageError("Specify --simulate (paper trade) or --live (real orders).")
+    if pool and resume:
+        raise click.UsageError("--pool and --resume cannot be combined.")
 
     from src.storage.db import get_session
     from src.engine.live_sim import run_live_simulation
@@ -307,6 +312,43 @@ def live_cmd(
                 raise click.UsageError(f"Could not fetch Kalshi balance: {exc}. Pass --bankroll manually.")
         else:
             bankroll = 5.00
+
+    if pool:
+        if use_live_orders:
+            click.echo("WARNING: --pool with --live places real orders on Kalshi.")
+            click.confirm("Continue?", abort=True)
+        from src.engine.worker_pool import WorkerPool
+        worker_kwargs = dict(
+            interval_seconds=interval,
+            settle_interval_seconds=settle_interval,
+            categories=cat_list,
+            near_term_minutes=near_term,
+            max_position_pct=max_position,
+            logs_dir=logs_dir,
+            use_live_orders=use_live_orders,
+            use_last_second=last_second,
+            use_streaming=streaming,
+            ls_entry_window=ls_entry_window,
+            ls_min_yes_cents=ls_min_yes,
+            ls_max_yes_cents=ls_max_yes,
+            ls_edge_buffer_pct=ls_edge_buffer,
+            ls_min_no_cents=ls_min_no,
+            ls_max_no_cents=ls_max_no,
+            ls_stability_window_s=ls_stability_window,
+            ls_stability_threshold_pct=ls_stability_threshold,
+            ls_directional_margin_pct=ls_directional_margin,
+            use_prediction=prediction,
+        )
+        click.echo(
+            f"Starting worker pool [{'LIVE' if use_live_orders else 'SIM'}]"
+            f" | bankroll=${bankroll:.2f}"
+            f" | workers={int(bankroll)} × $1 each"
+            f" | reset at $10"
+        )
+        WorkerPool(db_factory=get_session, worker_kwargs=worker_kwargs).start(
+            initial_capital_usd=bankroll
+        )
+        return
 
     if use_live_orders:
         click.echo("WARNING: --live mode enabled. Real orders will be placed on Kalshi.")
@@ -763,99 +805,6 @@ def cross_arb_scan(categories: str, min_profit: float, min_match: float, show_un
                 click.echo(f"  [{m.category}] {m.event_name}")
             if len(unmatched) > 20:
                 click.echo(f"  ... and {len(unmatched) - 20} more.")
-
-
-# ---------------------------------------------------------------------------
-# weather — NOAA/NWS weather market strategy
-# ---------------------------------------------------------------------------
-
-@cli.group()
-def weather():
-    """Weather market trading strategy (NOAA/NWS vs Kalshi)."""
-    pass
-
-
-@weather.command("scan")
-@click.option("--min-edge", default=None, type=float,
-              help="Minimum edge to show (default: WEATHER_MIN_EDGE env var)")
-def weather_scan(min_edge):
-    """One-shot scan: print weather market opportunities with NWS edge."""
-    from src.fetchers.kalshi import KalshiFetcher
-    from src.weather.scanner import scan_weather_markets
-    from config.settings import settings
-
-    edge = min_edge if min_edge is not None else settings.WEATHER_MIN_EDGE
-    fetcher = KalshiFetcher()
-    opps = scan_weather_markets(fetcher, min_edge=edge)
-
-    if not opps:
-        click.echo("No opportunities found.")
-        return
-
-    # Print a clean table: Market | NWS% | Kalshi% | Edge | Side
-    click.echo(
-        f"\n{'Market':<55} {'NWS%':>6} {'Kalshi%':>8}"
-        f" {'Edge':>6} {'Side':>5}"
-    )
-    click.echo("-" * 85)
-    for o in opps:
-        market_name = getattr(o["market"], "event_name", "") or getattr(
-            o["market"], "name", ""
-        )
-        name = (
-            market_name[:52] + "..."
-            if len(market_name) > 55
-            else market_name
-        )
-        click.echo(
-            f"{name:<55} {o['nws_prob']*100:>5.1f}%"
-            f" {o['kalshi_prob']*100:>7.1f}%"
-            f" {o['edge']*100:>5.1f}% {o['side']:>5}"
-        )
-
-
-@weather.command("run")
-@click.option("--simulate", "mode", flag_value="simulate", default=True,
-              help="Paper trade (default)")
-@click.option("--live", "mode", flag_value="live",
-              help="Place real orders")
-@click.option("--bankroll", default=5.0, type=float, show_default=True,
-              help="Starting bankroll in dollars")
-@click.option("--interval", default=None, type=int,
-              help="Scan interval seconds (default: WEATHER_INTERVAL env var)")
-@click.option("--min-edge", default=None, type=float,
-              help="Min edge to enter (default: WEATHER_MIN_EDGE env var)")
-@click.option("--scale-up-threshold", default=0.10, type=float, show_default=True,
-              help="Edge must grow by this much since entry to add contracts")
-@click.option("--resume", default=None, type=int,
-              help="Resume session ID")
-def weather_run(mode, bankroll, interval, min_edge, scale_up_threshold, resume):
-    """Run the weather trading strategy (continuous loop)."""
-    from src.weather.strategy import run_weather_strategy
-    from config.settings import settings
-
-    live = mode == "live"
-    scan_interval = (
-        interval if interval is not None else settings.WEATHER_INTERVAL
-    )
-    edge = min_edge if min_edge is not None else settings.WEATHER_MIN_EDGE
-
-    click.echo(
-        f"Starting weather strategy ({'LIVE' if live else 'SIM'})"
-        f" | bankroll=${bankroll:.2f}"
-        f" | interval={scan_interval}s"
-        f" | min_edge={edge:.0%}"
-        f" | scale_up_threshold={scale_up_threshold:.0%}"
-    )
-
-    run_weather_strategy(
-        live=live,
-        bankroll_cents=bankroll * 100,
-        interval_seconds=scan_interval,
-        min_edge=edge,
-        scale_up_threshold=scale_up_threshold,
-        session_id=resume,
-    )
 
 
 if __name__ == "__main__":

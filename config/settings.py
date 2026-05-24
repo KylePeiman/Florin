@@ -55,9 +55,6 @@ class Settings:
     MIN_EV_THRESHOLD: float = float(os.getenv("MIN_EV_THRESHOLD", "0.03"))
     DEFAULT_SOURCES: list[str] = os.getenv("DEFAULT_SOURCES", "kalshi").split(",")
 
-    # Weather strategy
-    WEATHER_MIN_EDGE: float = float(os.getenv("WEATHER_MIN_EDGE", "0.05"))
-    WEATHER_INTERVAL: int = int(os.getenv("WEATHER_INTERVAL", "3600"))
 
 
 settings = Settings()
