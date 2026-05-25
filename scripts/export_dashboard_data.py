@@ -312,14 +312,15 @@ def push_to_gist(content: str) -> bool:
 
 # ── pool summaries ────────────────────────────────────────────────────────────
 
-def export_pool_summaries(db) -> list[dict]:
+def export_pool_summaries(db) -> dict:
     from src.storage.models import SimSession
     rows = db.query(SimSession).filter(SimSession.pool_id.isnot(None)).all()
     pools: dict[int, list] = {}
     for s in rows:
         pools.setdefault(s.pool_id, []).append(s)
 
-    result = []
+    sim_pools: list[dict] = []
+    live_pools: list[dict] = []
     for pool_id, sessions in pools.items():
         total_trades = sum(s.total_trades for s in sessions)
         workers_active = sum(1 for s in sessions if s.status == "running")
@@ -328,7 +329,7 @@ def export_pool_summaries(db) -> list[dict]:
         # Skip ghost pools (crash-loops that produced no trades and no P&L)
         if total_trades == 0 and current == initial and workers_active > 100:
             continue
-        result.append({
+        entry = {
             "pool_id": pool_id,
             "workers_total": len(sessions),
             "workers_active": workers_active,
@@ -338,9 +339,13 @@ def export_pool_summaries(db) -> list[dict]:
             "total_trades": total_trades,
             "won": sum(s.won for s in sessions),
             "lost": sum(s.lost for s in sessions),
-        })
-    result.sort(key=lambda x: x["pool_id"], reverse=True)
-    return result
+        }
+        is_live = any(_is_live_session(s) for s in sessions)
+        (live_pools if is_live else sim_pools).append(entry)
+
+    sim_pools.sort(key=lambda x: x["pool_id"], reverse=True)
+    live_pools.sort(key=lambda x: x["pool_id"], reverse=True)
+    return {"sim": sim_pools, "live": live_pools}
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -384,7 +389,7 @@ def main() -> None:
     print(f"  sessions     : {len(sim_sessions)} sim, {len(live_sessions)} live")
     print(f"  open pos     : {len(sim_open)} sim, {len(live_open)} live")
     print(f"  history      : {len(sim_hist)} sim, {len(live_hist)} live")
-    print(f"  pools        : {len(pool_summaries)}")
+    print(f"  pools        : {len(pool_summaries['sim'])} sim, {len(pool_summaries['live'])} live")
 
 
 if __name__ == "__main__":

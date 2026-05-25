@@ -266,8 +266,11 @@ function renderHero(data) {
 }
 
 // ── Pool summary ──
-function renderPoolSection(pools) {
-  if (!pools || !pools.length) { document.getElementById('dash-pools').style.display = 'none'; return; }
+function renderPoolSection(poolSummary) {
+  const pools = poolSummary
+    ? (viewMode === 'live' ? (poolSummary.live || []) : (poolSummary.sim || []))
+    : [];
+  if (!pools.length) { document.getElementById('dash-pools').style.display = 'none'; return; }
   const hdr = `<tr>${['Pool ID','Workers','Active','Capital ($)','P&L ($)','Trades','W / L']
     .map(h => `<th>${h}</th>`).join('')}</tr>`;
   const body = pools.map(p => {

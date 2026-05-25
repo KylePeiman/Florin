@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-05-25T16:16:30Z",
+  "generated_at": "2026-05-25T16:22:52Z",
   "balance_dollars": 0.0,
   "sessions": {
     "sim": [
       {
         "id": 422,
         "started": "2026-05-24 20:41",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.07,
         "pnl": 0.07,
@@ -21,7 +21,7 @@
       {
         "id": 421,
         "started": "2026-05-24 20:41",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.07,
         "pnl": 0.07,
@@ -36,7 +36,7 @@
       {
         "id": 420,
         "started": "2026-05-24 20:41",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.1,
         "pnl": 0.1,
@@ -51,7 +51,7 @@
       {
         "id": 419,
         "started": "2026-05-24 20:41",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.07,
         "pnl": 0.07,
@@ -66,7 +66,7 @@
       {
         "id": 418,
         "started": "2026-05-24 20:41",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.29,
         "pnl": 0.29,
@@ -81,7 +81,7 @@
       {
         "id": 334,
         "started": "2026-05-24 20:40",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.04,
         "pnl": 0.04,
@@ -96,7 +96,7 @@
       {
         "id": 333,
         "started": "2026-05-24 20:40",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.04,
         "pnl": 0.04,
@@ -111,7 +111,7 @@
       {
         "id": 332,
         "started": "2026-05-24 20:40",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.04,
         "pnl": 0.04,
@@ -126,7 +126,7 @@
       {
         "id": 331,
         "started": "2026-05-24 20:40",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.04,
         "pnl": 0.04,
@@ -141,7 +141,7 @@
       {
         "id": 330,
         "started": "2026-05-24 20:40",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 1.04,
         "pnl": 0.04,
@@ -156,7 +156,7 @@
       {
         "id": 33,
         "started": "2026-03-29 15:28",
-        "status": "running",
+        "status": "stopped",
         "strategy": "\u2014",
         "balance": 9.61,
         "pnl": -0.39,
@@ -218,7 +218,7 @@
       {
         "id": 34,
         "started": "2026-03-30 15:41",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 5.29,
         "pnl": -0.2,
@@ -368,248 +368,7 @@
     ]
   },
   "open_positions": {
-    "sim": [
-      {
-        "session": 422,
-        "type": "Last-Second",
-        "event": "XRPD \u00b7 May 24 8:00 PM",
-        "contracts": 1,
-        "cost": 0.97,
-        "entered": "05-24 23:58"
-      },
-      {
-        "session": 421,
-        "type": "Last-Second",
-        "event": "XRPD \u00b7 May 24 8:00 PM",
-        "contracts": 1,
-        "cost": 0.98,
-        "entered": "05-24 23:58"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHLAX-26MAR30-T72",
-        "contracts": 1,
-        "cost": 0.15,
-        "entered": "03-30 01:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHDEN-26MAR30-B78.5",
-        "contracts": 1,
-        "cost": 0.3,
-        "entered": "03-30 00:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHDEN-26MAR30-B80.5",
-        "contracts": 1,
-        "cost": 0.34,
-        "entered": "03-30 00:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHDEN-26MAR30-B82.5",
-        "contracts": 1,
-        "cost": 0.2,
-        "entered": "03-30 00:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHDEN-26MAR30-T83",
-        "contracts": 3,
-        "cost": 0.09,
-        "entered": "03-30 00:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHCHI-26MAR30-B74.5",
-        "contracts": 1,
-        "cost": 0.16,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHCHI-26MAR30-B76.5",
-        "contracts": 1,
-        "cost": 0.23,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHCHI-26MAR30-B78.5",
-        "contracts": 1,
-        "cost": 0.28,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHCHI-26MAR30-B80.5",
-        "contracts": 1,
-        "cost": 0.19,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHCHI-26MAR30-T74",
-        "contracts": 1,
-        "cost": 0.13,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHAUS-26MAR30-B89.5",
-        "contracts": 1,
-        "cost": 0.28,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHAUS-26MAR30-B91.5",
-        "contracts": 1,
-        "cost": 0.1,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHAUS-26MAR30-B93.5",
-        "contracts": 3,
-        "cost": 0.12,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHAUS-26MAR30-T87",
-        "contracts": 1,
-        "cost": 0.15,
-        "entered": "03-29 23:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHPHIL-26MAR30-B65.5",
-        "contracts": 1,
-        "cost": 0.22,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHPHIL-26MAR30-B67.5",
-        "contracts": 1,
-        "cost": 0.45,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHPHIL-26MAR30-B69.5",
-        "contracts": 1,
-        "cost": 0.23,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHPHIL-26MAR30-B71.5",
-        "contracts": 1,
-        "cost": 0.11,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHPHIL-26MAR30-T65",
-        "contracts": 2,
-        "cost": 0.12,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHNY-26MAR30-B62.5",
-        "contracts": 2,
-        "cost": 0.18,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHNY-26MAR30-B64.5",
-        "contracts": 1,
-        "cost": 0.27,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHNY-26MAR30-B66.5",
-        "contracts": 1,
-        "cost": 0.42,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHNY-26MAR30-B68.5",
-        "contracts": 1,
-        "cost": 0.21,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHNY-26MAR30-T62",
-        "contracts": 5,
-        "cost": 0.2,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHMIA-26MAR30-B76.5",
-        "contracts": 3,
-        "cost": 0.18,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHMIA-26MAR30-B78.5",
-        "contracts": 1,
-        "cost": 0.26,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHMIA-26MAR30-B80.5",
-        "contracts": 1,
-        "cost": 0.53,
-        "entered": "03-29 22:59"
-      },
-      {
-        "session": 33,
-        "type": "Weather",
-        "event": "KXHIGHMIA-26MAR30-B82.5",
-        "contracts": 1,
-        "cost": 0.2,
-        "entered": "03-29 22:59"
-      }
-    ],
+    "sim": [],
     "live": []
   },
   "trade_history": {
@@ -11118,28 +10877,31 @@
       }
     ]
   },
-  "pool_summary": [
-    {
-      "pool_id": 1779655311,
-      "workers_total": 5,
-      "workers_active": 5,
-      "initial_dollars": 5.0,
-      "value_dollars": 5.6,
-      "pnl_dollars": 0.6,
-      "total_trades": 20,
-      "won": 18,
-      "lost": 0
-    },
-    {
-      "pool_id": 1779655247,
-      "workers_total": 5,
-      "workers_active": 5,
-      "initial_dollars": 5.0,
-      "value_dollars": 5.2,
-      "pnl_dollars": 0.2,
-      "total_trades": 10,
-      "won": 10,
-      "lost": 0
-    }
-  ]
+  "pool_summary": {
+    "sim": [
+      {
+        "pool_id": 1779655311,
+        "workers_total": 5,
+        "workers_active": 0,
+        "initial_dollars": 5.0,
+        "value_dollars": 5.6,
+        "pnl_dollars": 0.6,
+        "total_trades": 20,
+        "won": 18,
+        "lost": 0
+      },
+      {
+        "pool_id": 1779655247,
+        "workers_total": 5,
+        "workers_active": 0,
+        "initial_dollars": 5.0,
+        "value_dollars": 5.2,
+        "pnl_dollars": 0.2,
+        "total_trades": 10,
+        "won": 10,
+        "lost": 0
+      }
+    ],
+    "live": []
+  }
 }
