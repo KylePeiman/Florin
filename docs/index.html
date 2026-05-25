@@ -81,6 +81,13 @@
     .expand-icon { display: inline-block; transition: transform .2s; font-size: 10px; margin-right: 6px; color: var(--muted); }
     .trade-row.open .expand-icon { transform: rotate(90deg); }
 
+    /* ── pool group rows ── */
+    .pool-group-row { cursor: pointer; user-select: none; }
+    .pool-group-row td { background: rgba(88,166,255,.04); }
+    .pool-group-row:hover td { background: rgba(88,166,255,.10) !important; }
+    .worker-sub td { background: var(--surface); border-top: 1px solid rgba(255,255,255,.04) !important; font-size: 12px; color: var(--muted); }
+    .worker-sub td:nth-child(5), .worker-sub td:nth-child(6), .worker-sub td:nth-child(7) { color: var(--text); }
+
     /* ── canvas charts ── */
     .chart-wrap { margin: 12px 0 4px; }
     canvas { display: block; width: 100%; border-radius: 6px; }
@@ -285,68 +292,164 @@ function renderSessionsSection(sessions) {
   const el = document.getElementById('sess-all');
   if (!rows.length) { el.innerHTML = noData(`No ${viewMode} sessions yet.`); return; }
 
-  const running = rows.filter(r => r.status === 'running');
-  const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
-  const totalPnlCls = totalPnl >= 0 ? 'pos' : 'neg';
-  const cur = running.length ? running[0] : rows[0];
-  const curPnlCls = cur.pnl >= 0 ? 'pos' : 'neg';
+  // Separate pool sessions from solo sessions
+  const poolMap = {};
+  const soloRows = [];
+  for (const r of rows) {
+    if (r.pool_id != null) (poolMap[r.pool_id] = poolMap[r.pool_id] || []).push(r);
+    else soloRows.push(r);
+  }
+  const poolIds = Object.keys(poolMap).sort((a, b) => b - a);
+
+  let heroHtml;
+  if (poolIds.length) {
+    // Hero: show most recent active pool
+    const activePoolId = poolIds.find(pid => poolMap[pid].some(s => s.status === 'running')) || poolIds[0];
+    const pw = poolMap[activePoolId];
+    const totalBal = pw.reduce((s, r) => s + r.balance, 0);
+    const totalPnl = pw.reduce((s, r) => s + r.pnl, 0);
+    const gainPct = totalPnl / pw.length * 100;
+    const totalW = pw.reduce((s, r) => s + r.w, 0);
+    const totalL = pw.reduce((s, r) => s + r.l, 0);
+    const totalV = pw.reduce((s, r) => s + r.v, 0);
+    const activeCount = pw.filter(r => r.status === 'running').length;
+    const pnlCls = totalPnl >= 0 ? 'pos' : 'neg';
+    const allPnl = rows.reduce((s, r) => s + r.pnl, 0);
+    const allPnlCls = allPnl >= 0 ? 'pos' : 'neg';
+    heroHtml = `
+      <div class="metric"><div class="label">Active Pool</div>
+        <div class="value" style="font-size:1rem">#${activePoolId}</div>
+        <div class="sub">${activeCount}/${pw.length} workers running</div></div>
+      <div class="metric"><div class="label">Pool Capital</div>
+        <div class="value">$${totalBal.toFixed(2)}</div></div>
+      <div class="metric"><div class="label">Pool P&L</div>
+        <div class="value ${pnlCls}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</div>
+        <div class="sub ${pnlCls}">${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}%</div></div>
+      <div class="metric"><div class="label">All-time P&L</div>
+        <div class="value ${allPnlCls}">${allPnl >= 0 ? '+' : ''}$${allPnl.toFixed(4)}</div></div>
+      <div class="metric"><div class="label">W / L / V</div>
+        <div class="value" style="font-size:1rem">${totalW} / ${totalL} / ${totalV}</div></div>`;
+  } else {
+    const running = rows.filter(r => r.status === 'running');
+    const cur = running.length ? running[0] : rows[0];
+    const curPnlCls = cur.pnl >= 0 ? 'pos' : 'neg';
+    const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
+    const totalPnlCls = totalPnl >= 0 ? 'pos' : 'neg';
+    heroHtml = `
+      <div class="metric"><div class="label">Active Session</div>
+        <div class="value">#${cur.id}</div>
+        <div class="sub">${pillStatus(cur.status)}</div></div>
+      <div class="metric"><div class="label">Balance</div>
+        <div class="value">$${cur.balance.toFixed(4)}</div></div>
+      <div class="metric"><div class="label">Session P&L</div>
+        <div class="value ${curPnlCls}">${cur.pnl >= 0 ? '+' : ''}$${cur.pnl.toFixed(4)}</div>
+        <div class="sub ${curPnlCls}">${cur.gain_pct >= 0 ? '+' : ''}${cur.gain_pct.toFixed(2)}%</div></div>
+      <div class="metric"><div class="label">All Sessions P&L</div>
+        <div class="value ${totalPnlCls}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</div></div>
+      <div class="metric"><div class="label">W / L / V</div>
+        <div class="value" style="font-size:1rem">${cur.w} / ${cur.l} / ${cur.v}</div></div>`;
+  }
 
   el.innerHTML = `
-    <div class="metrics" style="margin-bottom:14px">
-      <div class="metric">
-        <div class="label">Active Session</div>
-        <div class="value">#${cur.id}</div>
-        <div class="sub">${pillStatus(cur.status)}</div>
-      </div>
-      <div class="metric">
-        <div class="label">Balance</div>
-        <div class="value">$${cur.balance.toFixed(4)}</div>
-      </div>
-      <div class="metric">
-        <div class="label">Session P&L</div>
-        <div class="value ${curPnlCls}">${cur.pnl >= 0 ? '+' : ''}$${cur.pnl.toFixed(4)}</div>
-        <div class="sub ${curPnlCls}">${cur.gain_pct >= 0 ? '+' : ''}${cur.gain_pct.toFixed(2)}%</div>
-      </div>
-      <div class="metric">
-        <div class="label">All Sessions P&L</div>
-        <div class="value ${totalPnlCls}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</div>
-      </div>
-      <div class="metric">
-        <div class="label">W / L / V</div>
-        <div class="value" style="font-size:1rem">${cur.w} / ${cur.l} / ${cur.v}</div>
-      </div>
-    </div>
+    <div class="metrics" style="margin-bottom:14px">${heroHtml}</div>
     <div class="tbl-wrap">${sessionsTable(rows)}</div>`;
 }
 
 function sessionsTable(rows) {
+  // Group by pool_id
+  const poolMap = {};
+  const soloRows = [];
+  for (const r of rows) {
+    if (r.pool_id != null) (poolMap[r.pool_id] = poolMap[r.pool_id] || []).push(r);
+    else soloRows.push(r);
+  }
+  const poolIds = Object.keys(poolMap).sort((a, b) => b - a);
+
   const hdr = `<tr>
-    <th>ID</th><th>Started</th><th>Status</th>
-    <th class="hide-mobile">Pool</th>
+    <th></th><th>ID</th><th>Started</th><th>Status</th>
     <th>Balance ($)</th><th>P&L ($)</th><th>Gain %</th>
     <th class="hide-mobile">Trades</th>
-    <th>W</th><th>L</th>
-    <th class="hide-mobile">V</th>
+    <th>W</th><th>L</th><th class="hide-mobile">V</th>
   </tr>`;
-  const body = rows.map(r => {
+
+  let body = '';
+
+  // One grouped row per pool
+  for (const poolId of poolIds) {
+    const ws = poolMap[poolId];
+    const totalBal = ws.reduce((s, w) => s + w.balance, 0);
+    const totalPnl = ws.reduce((s, w) => s + w.pnl, 0);
+    const gainPct = totalPnl / ws.length * 100;
+    const totalTrades = ws.reduce((s, w) => s + w.trades, 0);
+    const totalW = ws.reduce((s, w) => s + w.w, 0);
+    const totalL = ws.reduce((s, w) => s + w.l, 0);
+    const totalV = ws.reduce((s, w) => s + w.v, 0);
+    const activeCount = ws.filter(w => w.status === 'running').length;
+    const firstStarted = ws.reduce((m, w) => w.started < m ? w.started : m, ws[0].started);
+    const pnlCls = totalPnl >= 0 ? 'pos' : 'neg';
+    const statusCell = activeCount > 0
+      ? `<span class="pill pill-running">running</span> <span style="color:var(--muted);font-size:11px">${activeCount}/${ws.length}</span>`
+      : `<span class="pill pill-stopped">stopped</span> <span style="color:var(--muted);font-size:11px">0/${ws.length}</span>`;
+
+    const workerRows = ws.map(w => {
+      const wc = w.pnl >= 0 ? 'pos' : 'neg';
+      return `<tr class="worker-sub">
+        <td></td>
+        <td style="padding-left:24px;color:var(--muted)">↳ w${w.worker_index != null ? w.worker_index : w.id}</td>
+        <td>${esc(w.started)}</td>
+        <td>${pillStatus(w.status)}</td>
+        <td>$${w.balance.toFixed(4)}</td>
+        <td class="${wc}">${w.pnl >= 0 ? '+' : ''}$${w.pnl.toFixed(4)}</td>
+        <td class="${wc}">${w.gain_pct >= 0 ? '+' : ''}${w.gain_pct.toFixed(2)}%</td>
+        <td class="hide-mobile">${w.trades}</td>
+        <td>${w.w}</td><td>${w.l}</td><td class="hide-mobile">${w.v}</td>
+      </tr>`;
+    }).join('');
+
+    body += `<tr class="pool-group-row" onclick="toggleWorkers('pg${poolId}')">
+      <td><span class="expand-icon" id="pgicon${poolId}">▶</span></td>
+      <td><span class="pill pill-pool">Pool #${poolId}</span></td>
+      <td>${esc(firstStarted)}</td>
+      <td>${statusCell}</td>
+      <td>$${totalBal.toFixed(4)}</td>
+      <td class="${pnlCls}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</td>
+      <td class="${pnlCls}">${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}%</td>
+      <td class="hide-mobile">${totalTrades}</td>
+      <td>${totalW}</td><td>${totalL}</td><td class="hide-mobile">${totalV}</td>
+    </tr>
+    <tr id="pg${poolId}" style="display:none">
+      <td colspan="11" style="padding:0;border-top:none">
+        <table style="width:100%;border-collapse:collapse">${workerRows}</table>
+      </td>
+    </tr>`;
+  }
+
+  // Solo sessions (non-pool)
+  for (const r of soloRows) {
     const pnlCls = r.pnl >= 0 ? 'pos' : 'neg';
-    const poolCell = r.pool_id != null
-      ? `<span class="pill pill-pool">#${r.pool_id}</span>`
-      : `<span style="color:var(--muted)">—</span>`;
-    return `<tr>
+    body += `<tr>
+      <td></td>
       <td>${r.id}</td>
       <td>${esc(r.started)}</td>
       <td>${pillStatus(r.status)}</td>
-      <td class="hide-mobile">${poolCell}</td>
       <td>$${r.balance.toFixed(4)}</td>
       <td class="${pnlCls}">${r.pnl >= 0 ? '+' : ''}$${r.pnl.toFixed(4)}</td>
       <td class="${pnlCls}">${r.gain_pct >= 0 ? '+' : ''}${r.gain_pct.toFixed(2)}%</td>
       <td class="hide-mobile">${r.trades}</td>
-      <td>${r.w}</td><td>${r.l}</td>
-      <td class="hide-mobile">${r.v}</td>
+      <td>${r.w}</td><td>${r.l}</td><td class="hide-mobile">${r.v}</td>
     </tr>`;
-  }).join('');
+  }
+
   return `<table><thead>${hdr}</thead><tbody>${body}</tbody></table>`;
+}
+
+function toggleWorkers(id) {
+  const row = document.getElementById(id);
+  const icon = document.getElementById('pgicon' + id.replace('pg', ''));
+  if (!row) return;
+  const show = row.style.display === 'none';
+  row.style.display = show ? '' : 'none';
+  if (icon) icon.style.transform = show ? 'rotate(90deg)' : '';
 }
 
 // ── Open positions ──
