@@ -1,8 +1,8 @@
-"""Worker pool: runs floor(total_capital_dollars) parallel $1 arb sessions.
+"""Worker pool: runs floor(total_capital_dollars / 2) parallel $2 arb sessions.
 
-Each worker is an independent SimSession with a $1 budget.  When a worker's
+Each worker is an independent SimSession with a $2 budget.  When a worker's
 total value (liquid + locked) reaches $10, the supervisor signals it to stop,
-banks its capital, and spawns enough new $1 workers to match the new target.
+banks its capital, and spawns enough new $2 workers to match the new target.
 
 Usage (via CLI):
     python -m src.cli live --simulate --pool --bankroll 10
@@ -19,7 +19,7 @@ from typing import Callable
 
 from sqlalchemy.orm import Session as DbSession
 
-PER_WORKER_CENTS: float = 100.0    # $1 starting budget per worker
+PER_WORKER_CENTS: float = 200.0    # $2 starting budget per worker
 RESET_THRESHOLD_CENTS: float = 1000.0  # graduate a worker at $10
 SUPERVISOR_INTERVAL: float = 2.0   # seconds between supervisor ticks
 

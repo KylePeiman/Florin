@@ -319,7 +319,7 @@ def live_cmd(
             click.confirm("Continue?", abort=True)
         from src.engine.worker_pool import WorkerPool
         worker_kwargs = dict(
-            interval_seconds=interval,
+            interval_seconds=5,  # pool mode: 5s polling so 15s stability window accumulates ≥2 observations
             settle_interval_seconds=settle_interval,
             categories=cat_list,
             near_term_minutes=near_term,
@@ -342,7 +342,7 @@ def live_cmd(
         click.echo(
             f"Starting worker pool [{'LIVE' if use_live_orders else 'SIM'}]"
             f" | bankroll=${bankroll:.2f}"
-            f" | workers={int(bankroll)} × $1 each"
+            f" | workers={int(bankroll / 2)} × $2 each"
             f" | reset at $10"
         )
         WorkerPool(db_factory=get_session, worker_kwargs=worker_kwargs).start(
