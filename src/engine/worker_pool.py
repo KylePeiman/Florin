@@ -190,4 +190,14 @@ class WorkerPool:
         except Exception as exc:
             print(f"  [POOL] worker-{idx} (session #{session_id}) died: {exc}")
         finally:
+            try:
+                from src.storage.models import SimSession
+                db2 = self._db_factory()
+                sim = db2.get(SimSession, session_id)
+                if sim is not None and sim.status == "running":
+                    sim.status = "stopped"
+                    db2.commit()
+                db2.close()
+            except Exception:
+                pass
             db.close()

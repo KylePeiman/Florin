@@ -321,16 +321,21 @@ def export_pool_summaries(db) -> list[dict]:
 
     result = []
     for pool_id, sessions in pools.items():
+        total_trades = sum(s.total_trades for s in sessions)
+        workers_active = sum(1 for s in sessions if s.status == "running")
         initial = sum(s.initial_bankroll_cents for s in sessions)
         current = sum(s.total_value_cents() for s in sessions)
+        # Skip ghost pools (crash-loops that produced no trades and no P&L)
+        if total_trades == 0 and current == initial and workers_active > 100:
+            continue
         result.append({
             "pool_id": pool_id,
             "workers_total": len(sessions),
-            "workers_active": sum(1 for s in sessions if s.status == "running"),
+            "workers_active": workers_active,
             "initial_dollars": round(initial / 100, 2),
             "value_dollars": round(current / 100, 2),
             "pnl_dollars": round((current - initial) / 100, 4),
-            "total_trades": sum(s.total_trades for s in sessions),
+            "total_trades": total_trades,
             "won": sum(s.won for s in sessions),
             "lost": sum(s.lost for s in sessions),
         })
