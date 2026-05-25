@@ -153,6 +153,9 @@ class SimSession(Base):
     won = Column(Integer, default=0)
     lost = Column(Integer, default=0)
     voided = Column(Integer, default=0)
+    opening_adjustment_cents = Column(Float, default=0.0, nullable=True)  # gap vs prev session end
+    pool_id = Column(Integer, nullable=True)       # groups sessions under one WorkerPool run
+    worker_index = Column(Integer, nullable=True)  # 0-based index within the pool
 
     positions = relationship("SimPosition", back_populates="session")
 
@@ -191,6 +194,10 @@ class SimPosition(Base):
     result = Column(String(10), nullable=True)
     pnl_cents = Column(Float, nullable=True)
     settled_at = Column(DateTime, nullable=True)
+
+    # Weather strategy entry metadata (used for position recheck logic)
+    entry_nws_prob = Column(Float, nullable=True)   # NWS probability at entry
+    entry_edge = Column(Float, nullable=True)        # abs edge at entry
 
     # Live trading fields
     live = Column(Integer, default=0)           # 1 = real Kalshi orders were placed

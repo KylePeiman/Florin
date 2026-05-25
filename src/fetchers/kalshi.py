@@ -121,15 +121,23 @@ class KalshiFetcher(BaseFetcher):
             resp.raise_for_status()
             return resp.json()
 
-    def place_order(self, ticker: str, side: str, price_cents: int, count: int = 1) -> dict:
+    def place_order(
+        self,
+        ticker: str,
+        side: str,
+        price_cents: int,
+        count: int = 1,
+        action: str = "buy",
+    ) -> dict:
         """
-        Place a limit buy order on Kalshi.
+        Place a limit order on Kalshi.
+        action: "buy" (default) or "sell".
         Returns the order dict from the API response.
         Raises httpx.HTTPStatusError on failure.
         """
         body = {
             "ticker": ticker,
-            "action": "buy",
+            "action": action,
             "type": "limit",
             "time_in_force": "immediate_or_cancel",
             "side": side,
@@ -162,15 +170,24 @@ class KalshiFetcher(BaseFetcher):
     # Public interface
     # ------------------------------------------------------------------
 
-    def get_markets(self, **kwargs) -> list[Market]:
+    def get_markets(self, categories: list[str] | None = None, **kwargs) -> list[Market]:
         """
         Fetch open events from Kalshi with nested markets.
 
         Uses GET /events?status=open&with_nested_markets=true and pages
         through all results (cursor-based pagination).
+
+        Args:
+            categories: Optional list of category names to filter by
+                (e.g. ["Climate and Weather"]). Filters per page to
+                avoid fetching the full catalog when only one category
+                is needed. Case-insensitive.
         """
         markets: list[Market] = []
         cursor: str | None = None
+
+        # Build effective category filter: caller arg takes priority over global setting.
+        active_filter: list[str] = [c.lower() for c in (categories or self.category_filter or [])]
 
         while True:
             params: dict[str, Any] = {
@@ -180,10 +197,6 @@ class KalshiFetcher(BaseFetcher):
             }
             if cursor:
                 params["cursor"] = cursor
-            if self.category_filter:
-                # Kalshi series_ticker prefix acts as a loose category filter;
-                # we post-filter by category label below instead.
-                pass
 
             try:
                 data = self._get("/events", params)
@@ -199,6 +212,15 @@ class KalshiFetcher(BaseFetcher):
                 break
 
             events: list[dict] = data.get("events") or []
+
+            # Apply category filter per page to avoid accumulating unwanted markets.
+            if active_filter:
+                events = [
+                    e for e in events
+                    if e.get("category", "").lower() in active_filter
+                    or self._map_category(e.get("category", "")).lower() in active_filter
+                ]
+
             for event in events:
                 parsed = self._parse_event(event)
                 markets.extend(parsed)
@@ -208,6 +230,36 @@ class KalshiFetcher(BaseFetcher):
                 break
 
         print(f"  [kalshi] fetched {len(markets)} markets")
+        return markets
+
+    def get_markets_by_series(self, series_tickers: list[str]) -> list[Market]:
+        """
+        Fetch open markets for specific series tickers using GET /markets?series_ticker=X.
+        Much faster than get_markets() for targeted fetches — avoids the full catalog.
+        """
+        markets: list[Market] = []
+        for series in series_tickers:
+            cursor: str | None = None
+            while True:
+                params: dict[str, Any] = {
+                    "status": "open",
+                    "series_ticker": series,
+                    "limit": 100,
+                }
+                if cursor:
+                    params["cursor"] = cursor
+                try:
+                    data = self._get("/markets", params)
+                except Exception as exc:
+                    print(f"  [kalshi] series {series} fetch error: {exc}")
+                    break
+                for m in data.get("markets") or []:
+                    parsed = self._market_from_dict(m, series_ticker=series)
+                    if parsed:
+                        markets.append(parsed)
+                cursor = data.get("cursor") or ""
+                if not cursor:
+                    break
         return markets
 
     def get_market_status(self, ticker: str) -> dict:

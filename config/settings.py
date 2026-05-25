@@ -56,4 +56,5 @@ class Settings:
     DEFAULT_SOURCES: list[str] = os.getenv("DEFAULT_SOURCES", "kalshi").split(",")
 
 
+
 settings = Settings()

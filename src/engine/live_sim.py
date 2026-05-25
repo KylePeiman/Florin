@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import signal
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -267,6 +268,8 @@ def _enter_last_second_bet(
         f"  | closes_in={entry['seconds_to_close']:.0f}s"
         f"  | bankroll=${sim.current_bankroll_cents/100:.4f}"
     )
+    return pos
+
 
 
 def _enter_prediction_bet(db, sim, open_keys, opp, max_position_pct, log_file):
@@ -356,15 +359,18 @@ def _reconcile_balance(db, sim, fetcher, log_file) -> None:
 # Main loop
 # ---------------------------------------------------------------------------
 
-def _wait_interruptible(seconds: int, price_event=None) -> bool:
+def _wait_interruptible(seconds: int, price_event=None, should_run_fn=None) -> bool:
     """
     Wait up to `seconds` for either a price update or a shutdown signal.
     If price_event is provided (streaming active), returns as soon as any
     price changes rather than sleeping the full interval.
+    should_run_fn: callable returning bool — defaults to the global _RUNNING flag.
     """
+    if should_run_fn is None:
+        should_run_fn = lambda: _RUNNING
     if price_event is not None:
         deadline = time.time() + seconds
-        while _RUNNING:
+        while should_run_fn():
             remaining = deadline - time.time()
             if remaining <= 0:
                 return True
@@ -375,7 +381,7 @@ def _wait_interruptible(seconds: int, price_event=None) -> bool:
         return False
     else:
         for _ in range(seconds):
-            if not _RUNNING:
+            if not should_run_fn():
                 return False
             time.sleep(1)
         return True
@@ -395,7 +401,7 @@ def run_live_simulation(
     use_last_second: bool = True,
     ls_entry_window: int = 300,  # default matches last_second.ENTRY_WINDOW_SECONDS
     ls_min_yes_cents: int = 70,
-    ls_max_yes_cents: int = 92,
+    ls_max_yes_cents: int = 98,
     ls_edge_buffer_pct: float = 0.15,
     ls_stability_window_s: int = 15,
     ls_stability_threshold_pct: float = 0.003,
@@ -404,6 +410,7 @@ def run_live_simulation(
     ls_directional_margin_pct: float = 0.003,
     use_prediction: bool = False,
     use_streaming: bool = True,
+    stop_event: threading.Event | None = None,
 ) -> None:
     """
     Last-second price convergence sniper + optional headline prediction trades.
@@ -417,9 +424,15 @@ def run_live_simulation(
       B.  Fetch near-term Kalshi markets (updates last-second cache).
       B2. Prediction trades — Claude reviews headline signals and approves directional bets.
     """
-    global _RUNNING
-    _RUNNING = True
-    signal.signal(signal.SIGINT, _handle_sigint)
+    if stop_event is None:
+        global _RUNNING
+        _RUNNING = True
+        signal.signal(signal.SIGINT, _handle_sigint)
+        def _should_run() -> bool:
+            return _RUNNING
+    else:
+        def _should_run() -> bool:
+            return not stop_event.is_set()
 
     from src.fetchers.kalshi import KalshiFetcher
     from src.storage.models import SimSession, SimPosition
@@ -427,7 +440,7 @@ def run_live_simulation(
     # Last-second strategy state
     _ls_trackers: dict = {}           # kraken_pair → PriceTracker
     _ls_markets_cache: dict = {}      # ticker → Market; additive, evict only after close+30s
-    _ls_entered_tickers: set = set()  # tickers already entered this close-time cycle
+    _ls_entered_tickers: set = set()      # event keys already entered this close-time cycle
     _ls_diag_file = None              # separate verbose diagnostic log
     _kalshi_subscribed: set = set()   # tickers currently subscribed via WS
 
@@ -516,6 +529,30 @@ def run_live_simulation(
                 f"  stability={ls_stability_window_s}s/<{ls_stability_threshold_pct:.1%}"
             )
             _log(log_file, f"  [LAST-SECOND] diag log: {ls_diag_path}")
+        # Opening reconciliation (live mode, new sessions only)
+        if use_live_orders and not resume_session_id:
+            try:
+                actual_cents = fetcher.get_balance()
+                prev = (
+                    db.query(SimSession)
+                    .filter(SimSession.id != session_id, SimSession.status == "stopped")
+                    .order_by(SimSession.id.desc())
+                    .first()
+                )
+                prev_end = prev.current_bankroll_cents if prev else None
+                adj = actual_cents - initial_cents
+                sim.initial_bankroll_cents = actual_cents
+                sim.current_bankroll_cents = actual_cents
+                sim.opening_adjustment_cents = (actual_cents - prev_end) if prev_end is not None else 0.0
+                db.commit()
+                _log(log_file,
+                    f"  [RECONCILE] opening balance: Kalshi=${actual_cents/100:.2f}"
+                    + (f"  prev_session_end=${prev_end/100:.2f}  gap={sim.opening_adjustment_cents/100:+.2f}" if prev_end is not None else "")
+                    + (f"  *** untracked gap ***" if prev_end is not None and abs(sim.opening_adjustment_cents) > 5 else "")
+                )
+            except Exception as exc:
+                _log(log_file, f"  [RECONCILE] opening check failed: {exc}")
+
         _log(log_file, "=" * 65)
         _ls_diag_file.write(
             f"=== LS DIAG  session={session_id}  window={ls_entry_window}s"
@@ -530,7 +567,7 @@ def run_live_simulation(
         last_log_scan_at = 0.0
         tick = 0
 
-        while _RUNNING:
+        while _should_run():
             tick += 1
             now = datetime.now(timezone.utc)
             now_ts = now.timestamp()
@@ -641,7 +678,7 @@ def run_live_simulation(
                                     decision = f"REJECT: yes_ask={yes_ask}¢ < min={ls_min_yes_cents}¢"
                                 elif yes_ask > ls_max_yes_cents:
                                     decision = f"REJECT: yes_ask={yes_ask}¢ > max={ls_max_yes_cents}¢"
-                                elif f"{mkt.id}_yes" in _ls_entered_tickers:
+                                elif f"{mkt.id.rsplit('-', 1)[0]}_yes" in _ls_entered_tickers:
                                     decision = "SKIP: already entered this cycle"
                                 else:
                                     decision = f">>> ENTER directional YES yes_ask={yes_ask}¢ spot={spot} pct={pct:.4f}"
@@ -652,7 +689,7 @@ def run_live_simulation(
                                     decision = f"REJECT: no_ask={no_ask}¢ < min={ls_min_no_cents}¢"
                                 elif no_ask > ls_max_no_cents:
                                     decision = f"REJECT: no_ask={no_ask}¢ > max={ls_max_no_cents}¢"
-                                elif f"{mkt.id}_no" in _ls_entered_tickers:
+                                elif f"{mkt.id.rsplit('-', 1)[0]}_no" in _ls_entered_tickers:
                                     decision = "SKIP: already entered this cycle"
                                 else:
                                     decision = f">>> ENTER directional NO no_ask={no_ask}¢ spot={spot} pct={pct:.4f}"
@@ -673,7 +710,7 @@ def run_live_simulation(
                                 decision = f"REJECT: yes_ask={yes_ask}¢ < min={ls_min_yes_cents}¢"
                             elif yes_ask > ls_max_yes_cents:
                                 decision = f"REJECT: yes_ask={yes_ask}¢ > max={ls_max_yes_cents}¢"
-                            elif f"{mkt.id}_yes" in _ls_entered_tickers:
+                            elif f"{mkt.id.rsplit('-', 1)[0]}_yes" in _ls_entered_tickers:
                                 decision = "SKIP: already entered this cycle"
                             else:
                                 decision = f">>> ENTER yes_ask={yes_ask}¢ spot={spot} margin_floor={mf:.5f} margin_cap={mc:.5f}"
@@ -755,9 +792,10 @@ def run_live_simulation(
                     for entry in ls_entries:
                         ticker = entry["market"].id
                         side = entry.get("side", "yes")
-                        entry_key = f"{ticker}_{side}"
+                        event_key = ticker.rsplit("-", 1)[0]
+                        entry_key = f"{event_key}_{side}"
                         if entry_key in _ls_entered_tickers:
-                            continue
+                            continue  # already entered this event — block all second entries
                         # Freshen ask from WS cache (it just fired, so this is fresh)
                         if stream_mgr is not None:
                             ws_ask = stream_mgr.cache.get_yes_ask(ticker)
@@ -797,11 +835,12 @@ def run_live_simulation(
                                 SimPosition.status == "open",
                             ).all()
                         }
-                        _enter_last_second_bet(
+                        new_pos = _enter_last_second_bet(
                             db, sim, ls_open_keys, entry, contracts, log_file,
                             fetcher=fetcher, live=use_live_orders,
                         )
-                        _ls_entered_tickers.add(entry_key)
+                        if new_pos is not None:
+                            _ls_entered_tickers.add(entry_key)
                         db.commit()
 
             # ----------------------------------------------------------------
@@ -829,14 +868,17 @@ def run_live_simulation(
                     _reconcile_balance(db, sim, fetcher, log_file)
                     db.refresh(sim)
 
-                # Prune entry keys for markets that have closed (key = "ticker_side")
-                open_ticker_set = {
-                    m.id for m in _ls_markets_cache.values()
+                # Prune entry keys for events where all markets have closed.
+                # Keys are now event-level ("KXBTC-26MAR2507_yes"), so compare
+                # against the set of open event prefixes, not full tickers.
+                open_event_set = {
+                    m.id.rsplit("-", 1)[0]
+                    for m in _ls_markets_cache.values()
                     if m.starts_at and m.starts_at > now
                 }
                 expired = {
                     k for k in _ls_entered_tickers
-                    if k.rsplit("_", 1)[0] not in open_ticker_set
+                    if k.rsplit("_", 1)[0] not in open_event_set
                 }
                 _ls_entered_tickers -= expired
 
@@ -927,7 +969,7 @@ def run_live_simulation(
                             ).all()
                         }
                         for opp in pred_opps:
-                            if not _RUNNING:
+                            if not _should_run():
                                 break
                             _enter_prediction_bet(
                                 db, sim, pred_open_keys, opp, max_position_pct, log_file
@@ -950,9 +992,9 @@ def run_live_simulation(
                     _log(log_file, "  Bankroll depleted and no open positions -- stopping.")
                     break
 
-            if _RUNNING:
+            if _should_run():
                 price_event = stream_mgr.cache.update_event if stream_mgr is not None else None
-                _wait_interruptible(settle_interval_seconds, price_event)
+                _wait_interruptible(settle_interval_seconds, price_event, _should_run)
 
         # Shutdown
         if stream_mgr is not None:

@@ -4,7 +4,8 @@
 Python CLI application that scans Kalshi prediction markets for arbitrage opportunities, executes real or paper trades, and tracks performance over time.
 
 ## Rules
-Claude should only work in the Betting-App directory. Claude should never work in any directory that is in any parent folders.
+- Claude should only work in the Betting-App directory. Claude should never work in any directory that is in any parent folders.
+- Any code changes must be committed to GitHub with a clear description of what was changed and why.
 
 ## Architecture
 - `src/fetchers/kalshi.py` — Kalshi REST API: market fetch, RSA-PSS auth, order placement

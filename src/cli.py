@@ -245,7 +245,7 @@ def simulate_list(status: str | None, limit: int):
               help="Seconds before close to start monitoring for last-second entries.")
 @click.option("--ls-min-yes", default=70, type=int, show_default=True,
               help="Minimum YES ask in cents for last-second entries.")
-@click.option("--ls-max-yes", default=92, type=int, show_default=True,
+@click.option("--ls-max-yes", default=98, type=int, show_default=True,
               help="Maximum YES ask in cents for last-second entries.")
 @click.option("--ls-edge-buffer", default=0.15, type=float, show_default=True,
               help="Fraction of bucket width spot must be from edges (0.15 = 15%).")
@@ -259,6 +259,8 @@ def simulate_list(status: str | None, limit: int):
               help="Max allowed price movement fraction in stability window (0.003 = 0.3%).")
 @click.option("--ls-directional-margin", default=0.003, type=float, show_default=True,
               help="Min pct spot must be above/below floor_strike for 15M directional entries.")
+@click.option("--pool", is_flag=True, default=False,
+              help="Worker pool mode: floor(bankroll) parallel $1 workers, each resets at $10.")
 def live_cmd(
     mode: str | None,
     bankroll: float,
@@ -281,6 +283,7 @@ def live_cmd(
     ls_stability_window: int,
     ls_stability_threshold: float,
     ls_directional_margin: float,
+    pool: bool,
 ):
     """Run the last-second sniper with full options.
 
@@ -288,6 +291,8 @@ def live_cmd(
     """
     if mode is None:
         raise click.UsageError("Specify --simulate (paper trade) or --live (real orders).")
+    if pool and resume:
+        raise click.UsageError("--pool and --resume cannot be combined.")
 
     from src.storage.db import get_session
     from src.engine.live_sim import run_live_simulation
@@ -307,6 +312,43 @@ def live_cmd(
                 raise click.UsageError(f"Could not fetch Kalshi balance: {exc}. Pass --bankroll manually.")
         else:
             bankroll = 5.00
+
+    if pool:
+        if use_live_orders:
+            click.echo("WARNING: --pool with --live places real orders on Kalshi.")
+            click.confirm("Continue?", abort=True)
+        from src.engine.worker_pool import WorkerPool
+        worker_kwargs = dict(
+            interval_seconds=interval,
+            settle_interval_seconds=settle_interval,
+            categories=cat_list,
+            near_term_minutes=near_term,
+            max_position_pct=max_position,
+            logs_dir=logs_dir,
+            use_live_orders=use_live_orders,
+            use_last_second=last_second,
+            use_streaming=False,  # pool mode: per-worker WS causes 429 storms; use REST polling
+            ls_entry_window=ls_entry_window,
+            ls_min_yes_cents=ls_min_yes,
+            ls_max_yes_cents=ls_max_yes,
+            ls_edge_buffer_pct=ls_edge_buffer,
+            ls_min_no_cents=ls_min_no,
+            ls_max_no_cents=ls_max_no,
+            ls_stability_window_s=ls_stability_window,
+            ls_stability_threshold_pct=ls_stability_threshold,
+            ls_directional_margin_pct=ls_directional_margin,
+            use_prediction=prediction,
+        )
+        click.echo(
+            f"Starting worker pool [{'LIVE' if use_live_orders else 'SIM'}]"
+            f" | bankroll=${bankroll:.2f}"
+            f" | workers={int(bankroll)} × $1 each"
+            f" | reset at $10"
+        )
+        WorkerPool(db_factory=get_session, worker_kwargs=worker_kwargs).start(
+            initial_capital_usd=bankroll
+        )
+        return
 
     if use_live_orders:
         click.echo("WARNING: --live mode enabled. Real orders will be placed on Kalshi.")
@@ -355,15 +397,29 @@ def simulate_sessions(limit: int):
         click.echo("No sessions found.")
         return
 
-    click.echo(f"{'ID':>4}  {'Started':>19}  {'Status':>8}  {'Initial$':>9}  {'Liquid$':>8}  {'Trades':>6}  {'W/L/V':>9}  Log")
-    click.echo("-" * 110)
+    click.echo(f"{'ID':>4}  {'Started':>19}  {'Status':>8}  {'Initial$':>9}  {'Liquid$':>8}  {'P&L$':>7}  {'Gap$':>6}  {'Trades':>6}  {'W/L/V':>9}")
+    click.echo("-" * 100)
+    total_pnl = 0.0
+    total_adj = 0.0
     for s in sessions:
         started = s.created_at.strftime("%Y-%m-%d %H:%M:%S") if s.created_at else "—"
+        pnl = s.current_bankroll_cents - s.initial_bankroll_cents
+        adj = getattr(s, "opening_adjustment_cents", None) or 0.0
+        total_pnl += pnl
+        total_adj += adj
+        adj_str = f"{adj/100:>+6.2f}" if abs(adj) > 1 else f"{'--':>6}"
         click.echo(
             f"{s.id:>4}  {started:>19}  {s.status:>8}  "
-            f"{s.initial_bankroll_cents/100:>9.2f}  {s.current_bankroll_cents/100:>8.4f}  "
-            f"{s.total_trades:>6}  {s.won}/{s.lost}/{s.voided}  {s.log_path}"
+            f"{s.initial_bankroll_cents/100:>9.2f}  {s.current_bankroll_cents/100:>8.2f}  "
+            f"{pnl/100:>+7.2f}  {adj_str}  "
+            f"{s.total_trades:>6}  {s.won}/{s.lost}/{s.voided}"
         )
+    click.echo("-" * 100)
+    net = total_pnl + total_adj
+    click.echo(f"{'':>4}  {'':>19}  {'':>8}  {'':>9}  {'':>8}  "
+               f"{'Session P&L:':>14} ${total_pnl/100:+.2f}  "
+               f"{'Untracked gaps:':>15} ${total_adj/100:+.2f}  "
+               f"{'Net:':>4} ${net/100:+.2f}")
 
 
 @simulate.command("report")
