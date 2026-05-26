@@ -593,6 +593,22 @@ def run_live_simulation(
                             p = kraken_pair_for_market(mkt)
                             if p:
                                 triggered_pairs.add(p)
+                    # When WS is silent but markets are near close, REST-poll so we
+                    # don't miss the entry window due to a dropped WS connection.
+                    if not triggered_pairs:
+                        near_close_pairs = {
+                            p for m in cache_values
+                            if (p := kraken_pair_for_market(m))
+                            and m.starts_at
+                            and 0 < (m.starts_at - now).total_seconds() <= ls_entry_window + 30
+                        }
+                        if near_close_pairs and any(
+                            stream_mgr.cache.spot_age(p) > ls_stability_window_s
+                            for p in near_close_pairs
+                        ):
+                            fb = update_price_trackers(_ls_trackers, near_close_pairs)
+                            triggered_pairs = {p for p, v in fb.items() if v is not None}
+
                     # Filter to only markets relevant to what changed
                     if triggered_pairs:
                         scan_markets = [
