@@ -33,7 +33,9 @@ class Settings:
         c for c in os.getenv("KALSHI_CATEGORIES", "").split(",") if c
     ]
 
-    # Database
+    # Database — set DATABASE_URL to your Neon Postgres connection string
+    # (postgresql://...). Falls back to a local SQLite DB when unset, so the
+    # app still runs in development without any configuration.
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///betting_app.db")
 
     # Claude model
