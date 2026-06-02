@@ -1,4 +1,4 @@
-"""Database setup — SQLite via SQLAlchemy, upgrade-ready for Postgres."""
+"""Database setup — Neon Postgres via SQLAlchemy (SQLite still supported)."""
 from __future__ import annotations
 import threading
 from sqlalchemy import create_engine, event
@@ -12,7 +12,17 @@ _SessionLocal = None
 
 
 def _migrate(engine):
-    """Add new columns to existing tables without dropping data."""
+    """Add new columns to existing tables without dropping data.
+
+    Column types are written in SQLite spelling; on Postgres we translate to
+    the nearest equivalent. A failed ALTER (e.g. column already exists) aborts
+    the current transaction on Postgres, so roll back before the next one.
+    """
+    from sqlalchemy import text
+
+    is_postgres = engine.dialect.name == "postgresql"
+    _pg_types = {"INTEGER": "INTEGER", "REAL": "DOUBLE PRECISION", "TEXT": "TEXT"}
+
     with engine.connect() as conn:
         new_columns = [
             ("sim_positions", "live", "INTEGER DEFAULT 0"),
@@ -24,13 +34,16 @@ def _migrate(engine):
             ("sim_sessions", "worker_index", "INTEGER"),
         ]
         for table, col, col_type in new_columns:
+            if is_postgres:
+                base, _, default = col_type.partition(" ")
+                col_type = _pg_types.get(base, base) + (f" {default}" if default else "")
             try:
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"
                 ))
                 conn.commit()
             except Exception:
-                pass  # column already exists
+                conn.rollback()  # column already exists — discard the failed tx
 
 
 def _get_engine():
