@@ -63,3 +63,17 @@ def test_tracker_replace_history_prunes_stale_points():
     pts = [(now - 1000, 1.0), (now - 5, 2.0), (now - 1, 2.0)]
     tracker.replace_history(pts)
     assert tracker.observation_count() == 2  # the 1000s-old point is dropped
+
+
+def test_tracker_observations_in_window():
+    """observations_in_window counts only points inside the window, while
+    observation_count() returns the full retained history."""
+    tracker = PriceTracker(max_age_seconds=120)
+    now = time.time()
+    # 3 points within 15s, 2 points older than 15s but within max_age.
+    pts = [(now - 40, 1.0), (now - 20, 1.0),
+           (now - 10, 1.0), (now - 5, 1.0), (now - 1, 1.0)]
+    tracker.replace_history(pts)
+    assert tracker.observation_count() == 5
+    assert tracker.observations_in_window(15) == 3
+    assert tracker.observations_in_window(60) == 5

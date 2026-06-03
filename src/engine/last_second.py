@@ -106,6 +106,12 @@ class PriceTracker:
     def observation_count(self) -> int:
         return len(self._history)
 
+    def observations_in_window(self, window_seconds: int = STABILITY_WINDOW_S) -> int:
+        """Number of observations within the last window_seconds — this is what
+        is_stable() actually evaluates (it requires >= 2)."""
+        cutoff = time.time() - window_seconds
+        return sum(1 for t, _ in self._history if t >= cutoff)
+
     def age_seconds(self) -> float:
         """Seconds since the first recorded observation (0 if empty)."""
         if not self._history:
