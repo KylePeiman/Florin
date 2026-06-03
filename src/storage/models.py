@@ -186,7 +186,7 @@ class SimPosition(Base):
     cost_cents = Column(Float, nullable=False)      # total cash spent on this position
     contracts = Column(Integer, nullable=False, default=1)
     ev = Column(Float, nullable=False, default=0.0)
-    arb_type = Column(String(10), nullable=True)    # None | "binary" | "series"
+    arb_type = Column(String(20), nullable=True)    # None | "binary" | "series" | "last_second"
     # JSON legs for multi-leg positions: [{"ticker": str, "side": str, "price_cents": int}]
     _legs = Column("legs", Text, nullable=True)
 

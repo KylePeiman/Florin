@@ -45,6 +45,24 @@ def _migrate(engine):
             except Exception:
                 conn.rollback()  # column already exists — discard the failed tx
 
+        # Widen columns whose VARCHAR length grew after the table was first
+        # created. SQLite ignores VARCHAR lengths, but Postgres enforces them,
+        # so a value like arb_type="last_second" (11 chars) overflows the
+        # original VARCHAR(10). Re-running with the same width is a harmless
+        # no-op. (SQLite doesn't need — or fully support — this ALTER.)
+        if is_postgres:
+            widen = [
+                ("sim_positions", "arb_type", "VARCHAR(20)"),
+            ]
+            for table, col, col_type in widen:
+                try:
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ALTER COLUMN {col} TYPE {col_type}"
+                    ))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+
 
 def _get_engine():
     global _engine
