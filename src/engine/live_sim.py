@@ -624,9 +624,13 @@ def run_live_simulation(
                         for pair in pairs_needed:
                             if pair not in _ls_trackers:
                                 _ls_trackers[pair] = PriceTracker()
-                            ws_price = stream_mgr.cache.get_spot(pair)
-                            if ws_price is not None:
-                                _ls_trackers[pair].record(ws_price)
+                            # Mirror the full WS trade history (many points/sec)
+                            # into the tracker rather than sampling a single
+                            # latest price per loop iteration — otherwise the
+                            # stability window never accumulates enough points.
+                            series = stream_mgr.cache.spot_series(pair)
+                            if series:
+                                _ls_trackers[pair].replace_history(series)
                         price_results = {p: _ls_trackers[p].latest() for p in pairs_needed}
                     else:
                         price_results = update_price_trackers(_ls_trackers, pairs_needed)

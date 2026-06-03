@@ -18,9 +18,13 @@ class PriceCache:
     within milliseconds of any price update rather than on a fixed 5-second poll.
     """
 
+    # Retain enough spot history to cover any reasonable stability window.
+    _SPOT_HISTORY_MAX_AGE_S = 300.0
+
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._spot: dict[str, tuple[float, float]] = {}       # pair → (price, ts)
+        self._spot_history: dict[str, list[tuple[float, float]]] = {}  # pair → [(ts, price), ...]
         self._yes_ask: dict[str, tuple[float, float]] = {}    # ticker → (cents, ts)
         self._no_ask: dict[str, tuple[float, float]] = {}     # ticker → (cents, ts)
         self.update_event = threading.Event()                  # signalled on any price change
@@ -32,8 +36,17 @@ class PriceCache:
     # ------------------------------------------------------------------
 
     def set_spot(self, pair: str, price: float) -> None:
+        now = time.time()
         with self._lock:
-            self._spot[pair] = (price, time.time())
+            self._spot[pair] = (price, now)
+            # Keep a rolling per-pair history so stability can be evaluated over
+            # the real trade frequency (many points/sec) rather than being
+            # sampled once per slow main-loop iteration.
+            hist = self._spot_history.setdefault(pair, [])
+            hist.append((now, price))
+            cutoff = now - self._SPOT_HISTORY_MAX_AGE_S
+            if hist[0][0] < cutoff:
+                self._spot_history[pair] = [(t, p) for t, p in hist if t >= cutoff]
             self._triggered_pairs.add(pair)
         self.update_event.set()
 
@@ -41,6 +54,11 @@ class PriceCache:
         with self._lock:
             entry = self._spot.get(pair)
             return entry[0] if entry else None
+
+    def spot_series(self, pair: str) -> list[tuple[float, float]]:
+        """Return a copy of the rolling (ts, price) history for a pair."""
+        with self._lock:
+            return list(self._spot_history.get(pair, []))
 
     def spot_age(self, pair: str) -> float:
         """Seconds since last spot update, or infinity if never seen."""
