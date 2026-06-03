@@ -624,9 +624,13 @@ def run_live_simulation(
                         for pair in pairs_needed:
                             if pair not in _ls_trackers:
                                 _ls_trackers[pair] = PriceTracker()
-                            ws_price = stream_mgr.cache.get_spot(pair)
-                            if ws_price is not None:
-                                _ls_trackers[pair].record(ws_price)
+                            # Mirror the full WS trade history (many points/sec)
+                            # into the tracker rather than sampling a single
+                            # latest price per loop iteration — otherwise the
+                            # stability window never accumulates enough points.
+                            series = stream_mgr.cache.spot_series(pair)
+                            if series:
+                                _ls_trackers[pair].replace_history(series)
                         price_results = {p: _ls_trackers[p].latest() for p in pairs_needed}
                     else:
                         price_results = update_price_trackers(_ls_trackers, pairs_needed)
@@ -634,9 +638,11 @@ def run_live_simulation(
                     for pair, price in price_results.items():
                         tracker = _ls_trackers.get(pair)
                         obs = tracker.observation_count() if tracker else 0
+                        win_obs = tracker.observations_in_window(ls_stability_window_s) if tracker else 0
                         stable = tracker.is_stable(ls_stability_window_s, ls_stability_threshold_pct) if tracker else False
                         _ls_diag_file.write(
-                            f"  kraken {pair}: price={price}  obs={obs}  stable={stable}\n"
+                            f"  kraken {pair}: price={price}  "
+                            f"obs={win_obs}/{ls_stability_window_s}s (total {obs})  stable={stable}\n"
                         )
 
                     # Decision trace for each market in scope (buckets + directional 15M)
@@ -664,8 +670,9 @@ def run_live_simulation(
                         elif spot is None:
                             decision = "REJECT: no spot price from Kraken"
                         elif not stable:
+                            win_obs = tracker.observations_in_window(ls_stability_window_s) if tracker else 0
                             obs = tracker.observation_count() if tracker else 0
-                            decision = f"REJECT: price unstable (obs={obs} in {ls_stability_window_s}s)"
+                            decision = f"REJECT: price unstable (obs={win_obs} in {ls_stability_window_s}s, total {obs})"
                         elif is_directional:
                             pct = (spot - float(floor_s)) / float(floor_s)
                             no_ask = mkt.selections[0].metadata.get("no_ask") if mkt.selections else None
@@ -760,8 +767,9 @@ def run_live_simulation(
                                 if spot is None:
                                     reason = "no spot price"
                                 elif not stable:
+                                    win_obs = tracker.observations_in_window(ls_stability_window_s) if tracker else 0
                                     obs = tracker.observation_count() if tracker else 0
-                                    reason = f"unstable (obs={obs})"
+                                    reason = f"unstable (obs={win_obs} in {ls_stability_window_s}s, total {obs})"
                                 elif floor_s is not None and cap_s is not None:
                                     try:
                                         bw = float(cap_s) - float(floor_s)

@@ -70,6 +70,14 @@ class PriceTracker:
         cutoff = now - self._max_age
         self._history = [(t, p) for t, p in self._history if t >= cutoff]
 
+    def replace_history(self, points: list[tuple[float, float]]) -> None:
+        """Replace the rolling history with externally-collected (ts, price)
+        points (e.g. the full WebSocket trade history from PriceCache), pruning
+        anything older than max_age. This lets stability be evaluated at the
+        real trade frequency instead of one sample per main-loop iteration."""
+        cutoff = time.time() - self._max_age
+        self._history = [(t, p) for t, p in points if t >= cutoff]
+
     def latest(self) -> float | None:
         """Return the most recent price, or None if no observations."""
         return self._history[-1][1] if self._history else None
@@ -97,6 +105,12 @@ class PriceTracker:
 
     def observation_count(self) -> int:
         return len(self._history)
+
+    def observations_in_window(self, window_seconds: int = STABILITY_WINDOW_S) -> int:
+        """Number of observations within the last window_seconds — this is what
+        is_stable() actually evaluates (it requires >= 2)."""
+        cutoff = time.time() - window_seconds
+        return sum(1 for t, _ in self._history if t >= cutoff)
 
     def age_seconds(self) -> float:
         """Seconds since the first recorded observation (0 if empty)."""
