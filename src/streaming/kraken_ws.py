@@ -1,9 +1,13 @@
 """
 Kraken WebSocket v2 client — public feed, no auth required.
 
-Streams real-time ticker data for crypto pairs and writes ask prices to PriceCache.
+Streams real-time trade data for crypto pairs and writes last-trade prices to PriceCache.
+Using the 'trade' channel (not 'ticker') because trade fires on every executed trade,
+giving many observations per second for liquid pairs. The 'ticker' channel only fires
+when the best bid/ask changes, which on these pairs was ~1 update per 20s — not enough
+observations for the 15-second stability window to ever see >= 2 points.
 
-Kraken WS v2 docs: https://docs.kraken.com/api/docs/websocket-v2/ticker
+Kraken WS v2 docs: https://docs.kraken.com/api/docs/websocket-v2/trade
 """
 from __future__ import annotations
 
@@ -86,7 +90,7 @@ class KrakenWsClient:
         subscribe_msg = json.dumps({
             "method": "subscribe",
             "params": {
-                "channel": "ticker",
+                "channel": "trade",
                 "symbol": symbols,
             },
         })
@@ -112,14 +116,14 @@ class KrakenWsClient:
         except json.JSONDecodeError:
             return
 
-        # Kraken WS v2 ticker messages:
-        # {"channel": "ticker", "type": "snapshot"|"update", "data": [{...}, ...]}
-        if msg.get("channel") != "ticker":
+        # Kraken WS v2 trade messages:
+        # {"channel": "trade", "type": "update", "data": [{"symbol": "BTC/USD", "price": 66500.0, ...}]}
+        if msg.get("channel") != "trade":
             return
         for item in msg.get("data", []):
             symbol = item.get("symbol", "")
-            ask = item.get("ask")
-            if ask is not None:
+            price = item.get("price")
+            if price is not None:
                 pair = _SYMBOL_TO_PAIR.get(symbol)
                 if pair:
-                    self._cache.set_spot(pair, float(ask))
+                    self._cache.set_spot(pair, float(price))
