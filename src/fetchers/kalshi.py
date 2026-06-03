@@ -474,22 +474,30 @@ class KalshiFetcher(BaseFetcher):
         no_bid  = _read("no_bid")
         no_ask  = _read("no_ask")
 
-        # Require both sides to have non-zero quotes
-        yes_valid = yes_bid is not None and yes_ask is not None and yes_bid > 0 and yes_ask > 0
-        no_valid = no_bid is not None and no_ask is not None and no_bid > 0 and no_ask > 0
-
-        if not yes_valid or not no_valid:
+        # To BUY either side you only need a valid ask, so require both sides to
+        # be *buyable* (non-zero ask). A missing or zero BID is fine — it's
+        # normal for a near-certain outcome (e.g. a 98¢ YES whose NO side has no
+        # resting bid, or a far-OTM bucket whose YES side has none).
+        #
+        # The previous rule required a non-zero bid AND ask on BOTH sides, which
+        # silently dropped exactly those high-confidence and far-OTM buckets —
+        # precisely the markets the arb and last-second strategies target — so
+        # they never reached the scanner. (Dropped buckets are still counted in
+        # total_markets_in_event, which also broke series-arb exhaustiveness.)
+        if yes_ask is None or no_ask is None:
+            return []
+        if not (0 < yes_ask < 100 and 0 < no_ask < 100):
             return []
 
-        yes_mid = (yes_bid + yes_ask) / 2
-        no_mid = (no_bid + no_ask) / 2
+        # Price estimate per side for the legacy EV engine's odds/implied_prob:
+        # the mid when a real bid exists, otherwise the ask (the only firm
+        # price). When both bids are present this is identical to the old
+        # behaviour, so the legacy path is unchanged for normal two-sided books.
+        yes_px = (yes_bid + yes_ask) / 2 if (yes_bid and yes_bid > 0) else yes_ask
+        no_px  = (no_bid + no_ask) / 2 if (no_bid and no_bid > 0) else no_ask
 
-        # Sanity check: both mids must be in valid range and sum near 100
-        if not (0 < yes_mid < 100 and 0 < no_mid < 100):
-            return []
-
-        yes_odds = _cents_to_decimal_odds(yes_mid)
-        no_odds = _cents_to_decimal_odds(no_mid)
+        yes_odds = _cents_to_decimal_odds(yes_px)
+        no_odds = _cents_to_decimal_odds(no_px)
 
         if yes_odds <= 1.0 or no_odds <= 1.0:
             return []
@@ -501,7 +509,7 @@ class KalshiFetcher(BaseFetcher):
                 metadata={
                     "yes_bid": yes_bid,
                     "yes_ask": yes_ask,
-                    "implied_prob": round(yes_mid / 100, 4),
+                    "implied_prob": round(yes_px / 100, 4),
                 },
             ),
             Selection(
@@ -510,7 +518,7 @@ class KalshiFetcher(BaseFetcher):
                 metadata={
                     "no_bid": no_bid,
                     "no_ask": no_ask,
-                    "implied_prob": round(no_mid / 100, 4),
+                    "implied_prob": round(no_px / 100, 4),
                 },
             ),
         ]
